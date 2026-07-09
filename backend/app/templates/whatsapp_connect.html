@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}WhatsApp{% endblock %}
+{% block content %}
+{% set st = config.status_conexao if config else 'desconectado' %}
+<div class="page-head">
+    <div>
+        <h1>Conexão do WhatsApp</h1>
+        <p class="subtitulo">Vincule a linha do bot ao WhatsApp escaneando um QR Code.</p>
+    </div>
+    <div class="head-badges">
+        {% if modo_demo %}<span class="badge badge-demo">Modo teste</span>{% endif %}
+        <span class="pill pill--{{ st }}">
+            <span class="pill-dot"></span>
+            {% if st == 'conectado' %}Conectado
+            {% elif st == 'aguardando_pareamento' %}Aguardando leitura
+            {% else %}Desconectado{% endif %}
+        </span>
+    </div>
+</div>
+
+<div class="wpp-grid">
+    <section class="card wpp-main">
+        {% if not config or not config.numero_whatsapp %}
+        <div class="wpp-empty">
+            <div class="wpp-empty-icon">📱</div>
+            <p class="vazio">Nenhum número cadastrado. Informe o número do bot ao lado.</p>
+        </div>
+
+        {% elif st == 'conectado' %}
+        <div class="wpp-ok">
+            <div class="wpp-ok-icon">✓</div>
+            <h2>WhatsApp conectado</h2>
+            <p class="wpp-num">Bot ativo em <strong>{{ config.numero_whatsapp }}</strong></p>
+            <form method="post" action="/painel/whatsapp/desconectar">
+                <button type="submit" class="btn btn-danger btn-sm">Desconectar</button>
+            </form>
+        </div>
+
+        {% elif st == 'aguardando_pareamento' %}
+        <p class="wpp-num">Escaneie com o WhatsApp de <strong>{{ config.numero_whatsapp }}</strong></p>
+        {% if qr %}
+        <img id="qr-img" class="qr-img" src="{{ qr }}" alt="QR Code do WhatsApp">
+        {% else %}
+        <div class="qr-img qr-loading" id="qr-img-fallback">Gerando QR…</div>
+        {% endif %}
+        <p class="pairing-timer">O QR expira em <strong id="countdown">--:--</strong> — se sumir, clique em gerar de novo.</p>
+        <form method="post" action="/painel/whatsapp/parear">
+            <button type="submit" class="btn btn-ghost btn-sm">Gerar novo QR</button>
+        </form>
+
+        {% else %}
+        <div class="wpp-start">
+            <div class="wpp-start-icon">🔗</div>
+            <p class="wpp-num">Número do bot: <strong>{{ config.numero_whatsapp }}</strong></p>
+            <form method="post" action="/painel/whatsapp/parear">
+                <button type="submit" class="btn btn-primary btn-lg">Conectar WhatsApp</button>
+            </form>
+        </div>
+        {% endif %}
+    </section>
+
+    <aside class="card wpp-sidebar">
+        <div class="wpp-steps">
+            <h3>Como conectar</h3>
+            <ol class="passos">
+                <li>Abra o <strong>WhatsApp</strong> no celular do número acima.</li>
+                <li><strong>Configurações → Aparelhos conectados</strong>.</li>
+                <li>Toque em <strong>Conectar um aparelho</strong>.</li>
+                <li>Aponte a câmera para o <strong>QR Code</strong> ao lado.</li>
+            </ol>
+        </div>
+        <div class="wpp-trocar-numero">
+            <h3>Trocar número</h3>
+            <form method="post" action="/painel/whatsapp/numero" class="form-inline">
+                <input type="tel" name="numero_whatsapp"
+                    placeholder="{{ config.numero_whatsapp if config else '5561999998888' }}"
+                    pattern="[0-9]{10,15}" required>
+                <button type="submit" class="btn btn-sm">Atualizar</button>
+            </form>
+        </div>
+    </aside>
+</div>
+
+<script>
+    (function () {
+        if ("{{ st }}" !== "aguardando_pareamento") return;
+
+        var restantes = {{ segundos_restantes | default(0) }};
+        var elCountdown = document.getElementById("countdown");
+        var tickInterval;
+
+        function formata(s) {
+            var m = Math.floor(s / 60), ss = s % 60;
+            return m + ":" + (ss < 10 ? "0" : "") + ss;
+        }
+        function tick() {
+            if (restantes <= 0) {
+                if (elCountdown) elCountdown.textContent = "expirado";
+                clearInterval(tickInterval);
+                return;
+            }
+            if (elCountdown) elCountdown.textContent = formata(restantes);
+            restantes -= 1;
+        }
+        tick();
+        if (restantes > 0) tickInterval = setInterval(tick, 1000);
+
+        // Atualiza o QR periodicamente (o WhatsApp rotaciona o QR).
+        setInterval(function () {
+            fetch("/painel/whatsapp/qr").then(function (r) { return r.json(); }).then(function (d) {
+                var img = document.getElementById("qr-img");
+                if (d.qr && img) img.src = d.qr;
+            }).catch(function () { });
+        }, 20000);
+
+        // Detecta conexão e recarrega.
+        setInterval(function () {
+            fetch("/painel/whatsapp/status").then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) {
+                if (d.status && d.status !== "aguardando_pareamento") location.reload();
+            }).catch(function () { });
+        }, 3000);
+    })();
+</script>
+{% endblock %}

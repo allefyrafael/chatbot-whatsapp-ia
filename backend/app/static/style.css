@@ -1,0 +1,349 @@
+/* ===================================================================
+   Design system — tokens + componentes.
+   Princípio: o painel cabe em 100% da viewport; só listas longas rolam
+   internamente (dentro de um card), nunca a página.
+   Fonte: Inter (Google Fonts) com fallback para system-ui.
+   =================================================================== */
+
+:root {
+    --cor-bg: #f4f5f7;
+    --cor-surface: #ffffff;
+    --cor-borda: #e4e6eb;
+    --cor-texto: #1c1c1e;
+    --cor-texto-2: #64666d;
+    --cor-primaria: #1f6feb;
+    --cor-primaria-hover: #175ec4;
+    --cor-primaria-soft: #e7f0ff;
+    --cor-perigo: #d13c3c;
+    --cor-ok: #1a7f4b;
+    --cor-ok-bg: #dcfce7;
+    --cor-erro-bg: #fde2e1;
+    --cor-aviso: #b8860b;
+    --cor-aviso-bg: #fef3d0;
+
+    --raio: 10px;
+    --raio-sm: 7px;
+    --sombra: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .1);
+    --sombra-lg: 0 4px 12px rgba(16, 24, 40, .08), 0 1px 3px rgba(16, 24, 40, .06);
+    --topbar-h: 56px;
+    --espaco: 16px;
+    --fonte: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --transicao: .15s ease;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+body {
+    font-family: var(--fonte);
+    color: var(--cor-texto);
+    background: var(--cor-bg);
+    overflow: hidden;            /* a página nunca rola */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1 { font-size: 20px; margin: 0 0 4px; font-weight: 700; letter-spacing: -.01em; }
+h2 { font-size: 17px; margin: 0 0 8px; font-weight: 600; }
+h3 { font-size: 15px; margin: 0 0 10px; font-weight: 600; }
+p { margin: 0 0 10px; line-height: 1.5; }
+a { color: var(--cor-primaria); text-decoration: none; transition: color var(--transicao); }
+a:hover { text-decoration: underline; }
+code { background: #eef0f3; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+small { font-size: 12px; }
+
+/* ---------- App-shell (telas do painel) ---------- */
+body.app { display: flex; flex-direction: column; }
+
+.topbar {
+    height: var(--topbar-h);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 0 20px;
+    background: var(--cor-surface);
+    border-bottom: 1px solid var(--cor-borda);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+}
+.brand { font-weight: 700; font-size: 15px; }
+.topnav { display: flex; gap: 4px; margin-right: auto; }
+.topnav a {
+    padding: 7px 12px;
+    border-radius: var(--raio-sm);
+    color: var(--cor-texto-2);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background var(--transicao), color var(--transicao);
+}
+.topnav a:hover { background: #f0f1f4; color: var(--cor-texto); text-decoration: none; }
+.topnav a.active { background: var(--cor-primaria-soft); color: var(--cor-primaria); }
+.topbar-user { display: flex; align-items: center; gap: 12px; }
+.user-nome { font-size: 13px; color: var(--cor-texto-2); }
+
+.content {
+    flex: 1;
+    min-height: 0;               /* permite o filho encolher/rolar */
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+}
+
+.page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-shrink: 0;
+}
+.subtitulo { color: var(--cor-texto-2); font-size: 13px; margin: 0; max-width: 60ch; }
+
+/* ---------- Layout de autenticação (card centralizado) ---------- */
+body.auth { display: flex; }
+.auth-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;            /* se a tela for baixa, rola só o card */
+}
+.auth-brand { font-weight: 700; font-size: 16px; margin-bottom: 16px; text-align: center; }
+
+/* ---------- Cards ---------- */
+.card {
+    background: var(--cor-surface);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio);
+    box-shadow: var(--sombra);
+    padding: 20px;
+    transition: box-shadow var(--transicao);
+}
+
+/* ---------- Botões ---------- */
+.btn, button[type="submit"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-sm);
+    background: var(--cor-surface);
+    color: var(--cor-texto);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--fonte);
+    cursor: pointer;
+    transition: background var(--transicao), border-color var(--transicao), transform .05s, box-shadow var(--transicao);
+}
+.btn:hover, button[type="submit"]:hover { background: #f0f1f4; text-decoration: none; }
+.btn:active, button[type="submit"]:active { transform: scale(.98); }
+.btn:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--cor-primaria);
+    outline-offset: 1px;
+}
+.btn-primary, button[type="submit"].btn-primary {
+    background: var(--cor-primaria); border-color: var(--cor-primaria); color: #fff;
+    box-shadow: 0 1px 2px rgba(31, 111, 235, .2);
+}
+.btn-primary:hover { background: var(--cor-primaria-hover); border-color: var(--cor-primaria-hover); }
+.btn-danger { background: #fff; border-color: #f0c4c4; color: var(--cor-perigo); }
+.btn-danger:hover { background: #fdeaea; }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--cor-texto-2); }
+.btn-ghost:hover { background: #f0f1f4; }
+.btn-sm { padding: 6px 11px; font-size: 13px; }
+.btn-lg { padding: 12px 22px; font-size: 15px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- Formulários ---------- */
+form { display: flex; flex-direction: column; gap: 12px; }
+fieldset { border: 1px solid var(--cor-borda); border-radius: var(--raio-sm); padding: 14px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
+legend { font-size: 12px; font-weight: 700; color: var(--cor-texto-2); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
+label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; }
+input, textarea {
+    padding: 9px 11px;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-sm);
+    font-size: 14px;
+    font-family: var(--fonte);
+    background: #fff;
+    transition: border-color var(--transicao), box-shadow var(--transicao);
+}
+input:focus, textarea:focus {
+    border-color: var(--cor-primaria);
+    box-shadow: 0 0 0 3px rgba(31, 111, 235, .1);
+}
+textarea { resize: vertical; }
+.ajuda { color: var(--cor-texto-2); font-size: 12px; font-weight: 400; }
+.checkbox-inline { flex-direction: row; align-items: center; gap: 8px; }
+.checkbox-inline input { width: auto; }
+.form-inline { gap: 8px; }
+
+/* ---------- Alertas ---------- */
+.alerta { padding: 10px 14px; border-radius: var(--raio-sm); margin-bottom: 12px; font-size: 14px; flex-shrink: 0; }
+.alerta-erro { background: var(--cor-erro-bg); color: #9a1c1c; }
+.alerta-sucesso { background: var(--cor-ok-bg); color: var(--cor-ok); }
+
+/* ---------- Tabela (rola dentro do card) ---------- */
+.table-card { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.table-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--cor-borda); font-size: 14px; }
+th { position: sticky; top: 0; background: #fafbfc; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--cor-texto-2); font-weight: 600; }
+tbody tr { transition: background var(--transicao); }
+tbody tr:hover { background: #fafbfc; }
+.vazio { color: var(--cor-texto-2); font-size: 14px; padding: 8px 0; }
+
+/* ---------- Status pills ---------- */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--transicao);
+}
+.pill--conectado { background: var(--cor-ok-bg); color: var(--cor-ok); }
+.pill--aguardando_pareamento { background: var(--cor-aviso-bg); color: var(--cor-aviso); }
+.pill--desconectado { background: #eceef1; color: var(--cor-texto-2); }
+.badge { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #eceef1; color: var(--cor-texto-2); font-size: 11px; font-weight: 600; }
+
+/* ---------- Tutorial / passos ---------- */
+.tutorial { max-width: 620px; }
+.passos { padding-left: 20px; line-height: 1.6; margin: 0; font-size: 14px; }
+.passos li { margin-bottom: 6px; }
+.dica { font-size: 12px; color: var(--cor-texto-2); border-left: 3px solid #ffd24d; padding-left: 12px; margin-top: 12px; }
+
+/* ---------- WhatsApp: layout + código de pareamento ---------- */
+.wpp-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+.wpp-main { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
+.wpp-num { color: var(--cor-texto-2); font-size: 14px; }
+.wpp-ok-icon {
+    width: 56px; height: 56px; border-radius: 50%; background: var(--cor-ok-bg); color: var(--cor-ok);
+    font-size: 28px; display: flex; align-items: center; justify-content: center; margin: 0 auto;
+    animation: fadeIn .3s ease;
+}
+.wpp-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.wpp-sidebar { display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+.wpp-steps .passos { line-height: 1.7; }
+.wpp-trocar-numero { border-top: 1px solid var(--cor-borda); padding-top: 16px; }
+.pairing-code { display: flex; gap: 12px; }
+.pairing-chunk {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    padding: 12px 18px;
+    background: #f4f6fa;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-sm);
+    animation: fadeIn .3s ease;
+}
+.pairing-timer { color: var(--cor-texto-2); font-size: 14px; }
+#countdown { color: var(--cor-primaria); font-variant-numeric: tabular-nums; }
+
+/* QR Code */
+.qr-img {
+    width: 260px; height: 260px; border-radius: var(--raio-sm);
+    border: 1px solid var(--cor-borda); background: #fff; padding: 8px;
+    animation: fadeIn .3s ease; object-fit: contain;
+}
+.qr-loading { display: flex; align-items: center; justify-content: center; color: var(--cor-texto-2); font-size: 13px; }
+
+/* ---------- RAG (duas colunas) ---------- */
+.rag-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.rag-col { display: flex; flex-direction: column; gap: 12px; padding: 16px; min-height: 0; }
+.rag-col-head { font-weight: 700; font-size: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--cor-borda); }
+.rag-col--fazer .rag-col-head { color: var(--cor-ok); }
+.rag-col--nao_fazer .rag-col-head { color: var(--cor-perigo); }
+.rag-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.rag-item { border: 1px solid var(--cor-borda); border-radius: var(--raio-sm); padding: 8px 12px; background: #fff; transition: box-shadow var(--transicao); }
+.rag-item:hover { box-shadow: var(--sombra); }
+.rag-item.is-inativo { opacity: .55; }
+.rag-item summary { cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.rag-item-titulo { font-weight: 600; }
+.rag-edit { margin-top: 10px; gap: 8px; }
+.rag-edit-actions { flex-direction: row; display: flex; gap: 8px; }
+.rag-add { border-top: 1px dashed var(--cor-borda); padding-top: 12px; gap: 8px; }
+
+/* ---------- Badges de cabeçalho + pill com "dot" pulsante ---------- */
+.head-badges { display: flex; align-items: center; gap: 10px; }
+.badge-demo { background: #ede9fe; color: #6d28d9; padding: 4px 10px; font-size: 11px; }
+.pill-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.pill--aguardando_pareamento .pill-dot,
+.pill--conectado .pill-dot { animation: pulse 1.4s ease-in-out infinite; }
+
+/* ---------- WhatsApp: estados vazios / start / demo hint ---------- */
+.wpp-empty, .wpp-start { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.wpp-empty-icon, .wpp-start-icon { font-size: 40px; opacity: .7; }
+.demo-hint { font-size: 12px; color: #6d28d9; background: #ede9fe; padding: 6px 12px; border-radius: 999px; }
+.demo-banner { flex-shrink: 0; background: #ede9fe; border: 1px solid #d6ccf7; color: #4c1d95; padding: 10px 14px; border-radius: var(--raio-sm); font-size: 13px; line-height: 1.5; }
+.demo-banner code { background: #ffffff; color: #4c1d95; }
+.sim-tag { font-size: 12px; font-weight: 500; color: var(--cor-texto-2); }
+
+/* ---------- Configurações ---------- */
+.config-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+.def-list { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.def-list > div { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--cor-borda); }
+.def-list > div:last-child { border-bottom: none; }
+.def-list dt { color: var(--cor-texto-2); font-size: 13px; }
+.def-list dd { margin: 0; font-weight: 600; font-size: 14px; }
+.danger-zone { border-color: #f3d0d0; }
+.danger-zone h3 { color: var(--cor-perigo); }
+
+/* ---------- Groq: estado conectado ---------- */
+.groq-connected { display: flex; align-items: center; gap: 16px; flex-shrink: 0; border-color: #b7e4c7; background: linear-gradient(0deg, #fff, #f4fdf7); }
+.groq-connected-icon { width: 44px; height: 44px; border-radius: 50%; background: var(--cor-ok-bg); color: var(--cor-ok); font-size: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.groq-connected-body { flex: 1; }
+.groq-connected-body h2 { margin: 0 0 2px; color: var(--cor-ok); }
+.groq-connected-body p { margin: 0; font-size: 13px; color: var(--cor-texto-2); }
+
+/* ---------- Produtos: criação em etapas + preview ---------- */
+.item-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; align-items: start; }
+.step { display: flex; gap: 12px; align-items: flex-start; }
+.step-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--cor-primaria-soft); color: var(--cor-primaria); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; margin-top: 22px; }
+.step > label { flex: 1; }
+.item-preview-wrap { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; }
+.preview-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--cor-texto-2); font-weight: 600; }
+.preview-card { display: flex; gap: 14px; padding: 18px; background: var(--cor-surface); border: 1px solid var(--cor-borda); border-radius: var(--raio); box-shadow: var(--sombra-lg); }
+.preview-emoji { width: 52px; height: 52px; border-radius: var(--raio-sm); background: var(--cor-primaria-soft); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
+.preview-body { flex: 1; min-width: 0; }
+.preview-nome { font-weight: 700; font-size: 16px; margin-bottom: 4px; word-break: break-word; }
+.preview-desc { font-size: 13px; color: var(--cor-texto-2); margin-bottom: 10px; word-break: break-word; }
+.preview-preco { font-weight: 700; font-size: 18px; color: var(--cor-primaria); }
+.preview-preco.is-consulta { color: var(--cor-texto-2); font-style: italic; font-size: 15px; }
+
+/* ---------- Animações ---------- */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+}
+
+/* ---------- Responsivo (mobile: simplifica, empilha) ---------- */
+@media (max-width: 860px) {
+    body { overflow: auto; }              /* no mobile deixamos rolar */
+    .topbar { flex-wrap: wrap; height: auto; gap: 10px; padding: 10px 14px; }
+    .topnav { order: 3; width: 100%; overflow-x: auto; }
+    .content { overflow: visible; }
+    .wpp-grid, .rag-grid, .item-grid, .config-grid { grid-template-columns: 1fr; }
+    .item-preview-wrap { position: static; }
+    .pairing-chunk { font-size: 26px; letter-spacing: 4px; }
+}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}IA — RAG{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Comportamento da IA (RAG por prompt)</h1>
+        <p class="subtitulo">Instruções que entram no prompt do bot. Divididas em blocos de
+            <strong>o que fazer</strong> e <strong>o que não fazer</strong>.</p>
+    </div>
+    <a class="btn btn-ghost" href="/painel/rag/preview" target="_blank" rel="noopener">Ver prompt gerado</a>
+</div>
+
+<div class="rag-grid">
+    {% for tipo, titulo_col, blocos in [("fazer", "✓ O bot DEVE fazer", blocos_fazer),
+                                        ("nao_fazer", "✕ O bot NÃO deve fazer", blocos_nao_fazer)] %}
+    <section class="card rag-col rag-col--{{ tipo }}">
+        <header class="rag-col-head">{{ titulo_col }}</header>
+
+        <div class="rag-list">
+            {% for bloco in blocos %}
+            <details class="rag-item {{ 'is-inativo' if not bloco.ativo }}">
+                <summary>
+                    <span class="rag-item-titulo">{{ bloco.titulo }}</span>
+                    {% if not bloco.ativo %}<span class="badge">inativo</span>{% endif %}
+                </summary>
+                <form method="post" action="/painel/rag/{{ bloco.id }}/editar" class="rag-edit">
+                    <input type="text" name="titulo" value="{{ bloco.titulo }}" required>
+                    <textarea name="conteudo" rows="2" required>{{ bloco.conteudo }}</textarea>
+                    <label class="checkbox-inline">
+                        <input type="checkbox" name="ativo" value="1" {{ "checked" if bloco.ativo }}> Ativo
+                    </label>
+                    <div class="rag-edit-actions">
+                        <button type="submit" class="btn btn-sm">Salvar</button>
+                        <button type="submit" class="btn btn-sm btn-danger"
+                                formaction="/painel/rag/{{ bloco.id }}/excluir"
+                                onclick="return confirm('Excluir este bloco?')">Excluir</button>
+                    </div>
+                </form>
+            </details>
+            {% else %}
+            <p class="vazio">Nenhum bloco ainda.</p>
+            {% endfor %}
+        </div>
+
+        <form method="post" action="/painel/rag/novo" class="rag-add">
+            <input type="hidden" name="tipo" value="{{ tipo }}">
+            <input type="text" name="titulo" placeholder="Título (ex.: Saudação)" required>
+            <textarea name="conteudo" rows="2" placeholder="Instrução..." required></textarea>
+            <button type="submit" class="btn btn-sm btn-primary">+ Adicionar</button>
+        </form>
+    </section>
+    {% endfor %}
+</div>
+{% endblock %}

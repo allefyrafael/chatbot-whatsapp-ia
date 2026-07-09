@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Cadastro da empresa{% endblock %}
+{% block content %}
+<h1>Primeiro acesso</h1>
+<p class="subtitulo" style="margin-bottom:14px;">Configure sua empresa e crie o administrador.</p>
+
+<form method="post" action="/setup">
+    <fieldset>
+        <legend>Empresa</legend>
+        <label>Nome da empresa
+            <input type="text" name="nome_empresa" required>
+        </label>
+        <label>Número de WhatsApp do bot
+            <input type="tel" name="numero_whatsapp" placeholder="Ex.: 5561999998888"
+                   pattern="[0-9]{10,15}" required>
+            <small class="ajuda">
+                Número com DDI + DDD, só dígitos (ex.: 55 61 99999-8888 → 5561999998888).
+                É a linha que o chatbot vai usar. Ela será validada na etapa de conexão
+                do WhatsApp.
+            </small>
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Administrador</legend>
+        <label>Nome
+            <input type="text" name="admin_nome" required>
+        </label>
+        <label>E-mail
+            <input type="email" name="admin_email" required>
+        </label>
+        <label>Senha
+            <input type="password" name="admin_senha" minlength="8" required>
+        </label>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary">Criar empresa e administrador</button>
+</form>
+{% endblock %}

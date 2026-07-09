@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Painel{% endblock %} — Chatbot WhatsApp</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+{% set path = request.url.path if request else '' %}
+
+<body class="{{ 'app' if usuario else 'auth' }}">
+    {% if usuario %}
+    <header class="topbar">
+        <span class="brand">🤖 Painel</span>
+        <nav class="topnav">
+            <a href="/painel/itens" class="{{ 'active' if path.startswith('/painel/itens') }}">Produtos/Serviços</a>
+            <a href="/painel/whatsapp" class="{{ 'active' if path.startswith('/painel/whatsapp') }}">WhatsApp</a>
+            <a href="/painel/rag" class="{{ 'active' if path.startswith('/painel/rag') }}">IA · RAG</a>
+            <a href="/painel/integracao/groq?forcar=1"
+                class="{{ 'active' if path.startswith('/painel/integracao') }}">Chave Groq</a>
+            <a href="/painel/config" class="{{ 'active' if path.startswith('/painel/config') }}">Configurações</a>
+        </nav>
+        <div class="topbar-user">
+            <span class="user-nome">{{ usuario.nome }}</span>
+            <a href="/logout" class="btn btn-ghost btn-sm">Sair</a>
+        </div>
+    </header>
+    {% endif %}
+
+    <main class="{{ 'content' if usuario else 'auth-wrap' }}">
+        {% if not usuario %}<div class="auth-card card">
+            <div class="auth-brand">🤖 Chatbot WhatsApp + IA</div>{% endif %}
+
+            {% if erro %}<div class="alerta alerta-erro">{{ erro }}</div>{% endif %}
+            {% if sucesso %}<div class="alerta alerta-sucesso">{{ sucesso }}</div>{% endif %}
+
+            {% block content %}{% endblock %}
+
+            {% if not usuario %}
+        </div>{% endif %}
+    </main>
+</body>
+
+</html>

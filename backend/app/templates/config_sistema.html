@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Configurações{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Configurações</h1>
+        <p class="subtitulo">Dados da empresa e ações administrativas.</p>
+    </div>
+</div>
+
+<div class="config-grid">
+    <section class="card">
+        <h3>Empresa</h3>
+        <dl class="def-list">
+            <div><dt>Nome</dt><dd>{{ config.nome_empresa if config else '—' }}</dd></div>
+            <div><dt>WhatsApp do bot</dt><dd>{{ config.numero_whatsapp if config and config.numero_whatsapp else '—' }}</dd></div>
+            <div><dt>Conexão</dt><dd>
+                {% set st = config.status_conexao if config else 'desconectado' %}
+                <span class="pill pill--{{ st }}">{{ st.replace('_', ' ')|capitalize }}</span>
+            </dd></div>
+            <div><dt>IA (Groq)</dt><dd>
+                {% if config and config.groq_api_key %}
+                    <span class="pill pill--conectado">Chave cadastrada</span>
+                {% else %}
+                    <span class="pill pill--desconectado">Sem chave</span>
+                {% endif %}
+            </dd></div>
+            <div><dt>Administradores</dt><dd>{{ total_usuarios }}</dd></div>
+        </dl>
+    </section>
+
+    <section class="card danger-zone">
+        <h3>Zona de perigo</h3>
+        <p class="ajuda">Apaga <strong>todos os dados</strong> (empresa, admins, produtos, IA e conexão)
+            e devolve o sistema ao primeiro acesso. Útil para revalidar o onboarding do zero.
+            Esta ação <strong>não pode ser desfeita</strong>.</p>
+        <form method="post" action="/painel/config/reset"
+              onsubmit="return confirm('Tem certeza? Isso apaga TUDO e não pode ser desfeito.');">
+            <button type="submit" class="btn btn-danger">Apagar tudo e recomeçar</button>
+        </form>
+    </section>
+</div>
+{% endblock %}

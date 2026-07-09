@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ "Editar item" if item else "Novo item" }}{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>{{ "Editar produto/serviço" if item else "Novo produto/serviço" }}</h1>
+        <p class="subtitulo">Preencha as etapas e veja como o item aparece para o cliente.</p>
+    </div>
+    <a href="/painel/itens" class="btn btn-ghost btn-sm">← Voltar</a>
+</div>
+
+<div class="item-grid">
+    <!-- Coluna 1: formulário em etapas -->
+    <section class="card">
+        <form method="post" id="item-form">
+            <div class="step">
+                <span class="step-num">1</span>
+                <label>Nome
+                    <input type="text" name="nome" id="f-nome" value="{{ item.nome if item else '' }}"
+                        placeholder="Ex.: X-Burguer" required>
+                </label>
+            </div>
+            <div class="step">
+                <span class="step-num">2</span>
+                <label>Descrição <span class="ajuda">(opcional)</span>
+                    <textarea name="descricao" id="f-desc" rows="2"
+                        placeholder="Ex.: Pão, hambúrguer 180g, queijo e salada">{{ item.descricao if item else '' }}</textarea>
+                </label>
+            </div>
+            <div class="step">
+                <span class="step-num">3</span>
+                <div style="flex:1;">
+                    {% set sem_preco = item and item.preco is none %}
+                    <label class="checkbox-inline" style="margin-bottom:8px;">
+                        <input type="checkbox" id="sem_preco" name="sem_preco" value="1" {{ "checked" if sem_preco }}>
+                        Preço sob consulta
+                    </label>
+                    <label id="campo_preco">Preço
+                        <input type="number" step="0.01" min="0" name="preco" id="f-preco"
+                            value="{{ item.preco if item and item.preco is not none else '' }}" placeholder="0,00">
+                    </label>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+                <button type="submit" class="btn btn-primary">{{ "Salvar alterações" if item else "Criar item" }}</button>
+                <a href="/painel/itens" class="btn btn-ghost">Cancelar</a>
+            </div>
+        </form>
+    </section>
+
+    <!-- Coluna 2: preview ao vivo -->
+    <aside class="item-preview-wrap">
+        <span class="preview-label">Prévia — como o cliente vê</span>
+        <div class="preview-card">
+            <div class="preview-emoji">🛍️</div>
+            <div class="preview-body">
+                <div class="preview-nome" id="p-nome">Nome do item</div>
+                <div class="preview-desc" id="p-desc">A descrição aparece aqui.</div>
+                <div class="preview-preco" id="p-preco">R$ 0,00</div>
+            </div>
+        </div>
+    </aside>
+</div>
+
+<script>
+    (function () {
+        var nome = document.getElementById("f-nome");
+        var desc = document.getElementById("f-desc");
+        var preco = document.getElementById("f-preco");
+        var semPreco = document.getElementById("sem_preco");
+        var campoPreco = document.getElementById("campo_preco");
+
+        var pNome = document.getElementById("p-nome");
+        var pDesc = document.getElementById("p-desc");
+        var pPreco = document.getElementById("p-preco");
+
+        function moeda(v) {
+            var n = parseFloat(v);
+            if (isNaN(n)) return "R$ 0,00";
+            return "R$ " + n.toFixed(2).replace(".", ",");
+        }
+        function render() {
+            pNome.textContent = nome.value.trim() || "Nome do item";
+            pDesc.textContent = desc.value.trim() || "A descrição aparece aqui.";
+            if (semPreco.checked) {
+                campoPreco.style.display = "none";
+                preco.removeAttribute("required");
+                pPreco.textContent = "Sob consulta";
+                pPreco.classList.add("is-consulta");
+            } else {
+                campoPreco.style.display = "";
+                pPreco.textContent = moeda(preco.value);
+                pPreco.classList.remove("is-consulta");
+            }
+        }
+        [nome, desc, preco].forEach(function (el) { el.addEventListener("input", render); });
+        semPreco.addEventListener("change", render);
+        render();
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Chave Groq{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Inteligência Artificial (Groq)</h1>
+        <p class="subtitulo">O bot usa o Groq para entender as mensagens. Cadastre uma chave gratuita.</p>
+    </div>
+    {% if chave_mascarada %}
+    <span class="pill pill--conectado"><span class="pill-dot"></span> IA conectada</span>
+    {% else %}
+    <span class="pill pill--desconectado"><span class="pill-dot"></span> Sem chave</span>
+    {% endif %}
+</div>
+
+{% if chave_mascarada %}
+<div class="groq-connected card">
+    <div class="groq-connected-icon">✓</div>
+    <div class="groq-connected-body">
+        <h2>Tudo certo — a IA está ativa</h2>
+        <p>Chave em uso: <code>{{ chave_mascarada }}</code>. O bot já pode responder com inteligência.</p>
+    </div>
+    <button type="button" class="btn" id="btn-trocar">Trocar chave</button>
+</div>
+{% endif %}
+
+<div class="wpp-grid" id="groq-form-area" {% if chave_mascarada %}style="display:none;" {% endif %}>
+    <section class="card tutorial">
+        <h2>Como pegar sua chave</h2>
+        <ol class="passos">
+            <li>Acesse <a href="https://console.groq.com" target="_blank" rel="noopener">console.groq.com</a> e crie uma conta gratuita.</li>
+            <li>Vá em <strong>API Keys</strong> (<a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>).</li>
+            <li>Clique em <strong>Create API Key</strong>, dê um nome e confirme.</li>
+            <li>Copie a chave (começa com <code>gsk_</code>). O Groq a mostra <strong>uma vez só</strong>.</li>
+            <li>Cole ao lado e clique em <strong>Salvar e validar</strong>.</li>
+        </ol>
+        <p class="dica">A chave é secreta. Fica guardada com segurança e nunca é exibida por completo. Se vazar, revogue no console e gere outra.</p>
+    </section>
+
+    <aside class="card" style="display:flex; flex-direction:column; justify-content:center;">
+        <form method="post" action="/painel/integracao/groq">
+            <label>{{ "Nova chave de API do Groq" if chave_mascarada else "Chave de API do Groq" }}
+                <input type="password" name="groq_api_key" placeholder="gsk_..." autocomplete="off" required
+                    {% if not chave_mascarada %}autofocus{% endif %}>
+            </label>
+            <button type="submit" class="btn btn-primary">Salvar e validar</button>
+        </form>
+    </aside>
+</div>
+
+{% if chave_mascarada %}
+<script>
+    document.getElementById("btn-trocar").addEventListener("click", function () {
+        var area = document.getElementById("groq-form-area");
+        area.style.display = "grid";
+        this.style.display = "none";
+        var input = area.querySelector("input[name='groq_api_key']");
+        if (input) input.focus();
+    });
+</script>
+{% endif %}
+{% endblock %}
