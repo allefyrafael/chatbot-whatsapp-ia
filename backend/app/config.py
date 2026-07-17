@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(_ENV_FILE), extra="ignore")
 
     database_url: str = "mysql+pymysql://chatbot_app:chatbot_app_pass@localhost:3306/chatbot"
+    # Caminho do certificado CA para TLS (ex.: AWS RDS). Vazio = sem TLS explícito.
+    db_ssl_ca: str = ""
     jwt_secret_key: str = "troque-esta-chave-em-producao"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480

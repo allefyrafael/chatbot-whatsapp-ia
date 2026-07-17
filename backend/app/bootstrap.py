@@ -43,7 +43,10 @@ def criar_database_se_nao_existe() -> None:
 
     # Engine apontando para o servidor, mas sem selecionar um database.
     # (set(database=None) é ignorado pelo SQLAlchemy; usa-se string vazia para limpar.)
-    engine_servidor = create_engine(url.set(database=""))
+    # Reusa os mesmos connect_args (ex.: TLS do RDS) do engine principal.
+    from app.database import CONNECT_ARGS
+
+    engine_servidor = create_engine(url.set(database=""), connect_args=CONNECT_ARGS)
     try:
         with engine_servidor.connect() as conn:
             conn.execute(

@@ -71,7 +71,15 @@ if (-not (Test-Path ".env")) {
 }
 
 # 4. MySQL -------------------------------------------------------------------
-if (Test-Porta 3306) {
+# Le o host do banco no .env: se for remoto (ex.: AWS RDS), NAO mexemos no MySQL local.
+$dbHost = ""
+$linhaDb = Select-String -Path ".env" -Pattern "^DATABASE_URL=" | Select-Object -First 1
+if ($linhaDb -and $linhaDb.Line -match ".*@([^:/?]+)") { $dbHost = $Matches[1] }
+$dbLocal = ($dbHost -eq "" -or $dbHost -eq "localhost" -or $dbHost -eq "127.0.0.1")
+
+if (-not $dbLocal) {
+    Write-Host "[4/6] Banco remoto ($dbHost) — conectando direto (nao subo MySQL local)." -ForegroundColor DarkGray
+} elseif (Test-Porta 3306) {
     Write-Host "[4/6] MySQL ja responde na porta 3306 (usando o existente)." -ForegroundColor DarkGray
 } elseif ($dockerOk) {
     Write-Host "[4/6] Subindo o MySQL no Docker (aguarde ficar pronto)..." -ForegroundColor Cyan

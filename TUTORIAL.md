@@ -94,14 +94,75 @@ Ao logar, você cai na tela da **chave Groq** (é o "cérebro" do bot):
 
 ---
 
-## 5. Nas próximas vezes
+## 5. Opcional: usar um banco de dados na nuvem (AWS RDS)
+
+Por padrão o banco roda na sua máquina (no Docker). Se quiser um **MySQL gerenciado na
+AWS (RDS)** — por exemplo, para a turma inteira acessar o mesmo banco pela internet —
+siga os passos abaixo. Quando o `.env` aponta para um endereço remoto, o `run.bat`
+detecta isso e **não** sobe o MySQL local.
+
+### 5.1 Criar a instância no RDS
+1. Acesse o **console da AWS** → serviço **RDS** → **Create database**.
+2. Método: **Standard create**. Engine: **MySQL**.
+3. Templates: **Free tier** (evita cobrança).
+4. **Settings**:
+   - DB instance identifier: `chatbot`
+   - Master username: `admin`
+   - Master password: escolha uma senha forte e **anote**.
+5. **Instance configuration**: `db.t3.micro` (ou o que o free tier oferecer).
+6. **Connectivity**:
+   - Public access: **Yes** (para conseguir acessar da sua máquina).
+   - VPC security group: **Create new** (dê um nome, ex.: `chatbot-sg`).
+7. **Additional configuration** → Initial database name: `chatbot`.
+8. Clique em **Create database** e espere ~5 minutos até o status ficar **Available**.
+
+### 5.2 Liberar o acesso (Security Group)
+1. Abra a instância → aba **Connectivity & security** → clique no **VPC security group**.
+2. **Inbound rules** → **Edit inbound rules** → **Add rule**:
+   - Type: **MySQL/Aurora** (porta **3306**)
+   - Source: **My IP** (ou o IP/faixa da turma)
+3. Salve. (Sem isso, a conexão fica "travada"/timeout.)
+
+### 5.3 Pegar o endpoint
+Na página da instância, copie o **Endpoint** — algo como
+`chatbot.xxxxxxxx.us-east-1.rds.amazonaws.com`.
+
+### 5.4 Apontar o app para o RDS
+Abra o arquivo **`backend/.env`** e troque a linha `DATABASE_URL` pelo endpoint do RDS:
+
+```
+DATABASE_URL=mysql+pymysql://admin:SUA_SENHA@SEU_ENDPOINT:3306/chatbot
+```
+
+**TLS (recomendado pela AWS):** baixe o certificado da AWS em
+<https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem>, salve num lugar
+fácil, e no `.env` preencha (use barras normais `/`):
+
+```
+DB_SSL_CA=C:/Users/voce/certs/global-bundle.pem
+```
+
+### 5.5 Rodar
+Rode o **`run.bat`** normalmente. Ele vai:
+- detectar que o banco é remoto e **não** subir o MySQL do Docker;
+- conectar no RDS e **criar as tabelas sozinho** no primeiro start.
+
+Pronto: o painel funciona igual, mas os dados agora ficam no banco da AWS. Para voltar ao
+banco local, é só recolocar a `DATABASE_URL` original no `.env`.
+
+> Dica de custo: o RDS free tier tem limite de horas/mês. Quando não estiver usando,
+> **pare (Stop)** a instância no console para não gastar as horas à toa.
+
+---
+
+## 6. Nas próximas vezes
 
 Só precisa: abrir o **Docker Desktop** (esperar "Engine running") e rodar o **`run.bat`**
 de novo. Ele reaproveita tudo o que já foi instalado e sobe rápido.
 
 ---
 
-## 6. Se algo der errado
+## 7. Se algo der errado
 
 | Problema | Solução |
 |---------|---------|
@@ -110,6 +171,8 @@ de novo. Ele reaproveita tudo o que já foi instalado e sobe rápido.
 | WhatsApp "sumiu"/caiu | É o Docker que parou. No PowerShell: `wsl --shutdown`, reabra o Docker Desktop, e rode o `run.bat`. |
 | Porta 8000 ocupada | Feche outro programa que use a porta 8000 (ou outro servidor rodando). |
 | QR Code não aparece | Confirme que o Docker está "Engine running" e clique em **Gerar novo QR**. |
+| RDS: conexão trava/timeout | Confira o **Security Group** (regra MySQL 3306 para o seu IP) e se "Public access" está **Yes**. |
+| RDS: erro de SSL/TLS | Baixe o `global-bundle.pem` da AWS e aponte o `DB_SSL_CA` para ele no `.env` (barras `/`). |
 
 Documentação técnica detalhada (para quem quer entender o código):
 [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
