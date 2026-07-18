@@ -18,16 +18,24 @@ from app.models import (
     Pagamento,
     Pedido,
     RagBloco,
+    RotaCampo,
+    RotaIA,
+    SessaoChat,
     TabelaDinamica,
     Usuario,
 )
 
 # Ordem segura por chave estrangeira (filhos antes dos pais).
+# IMPORTANTE: ao criar uma tabela nova de domínio, acrescente-a aqui — senão o
+# "apagar tudo" deixa resíduo e o onboarding não recomeça de verdade.
 _MODELOS_EM_ORDEM = [
     ItemPedido,
     Pagamento,
     Pedido,
     Mensagem,
+    SessaoChat,
+    RotaCampo,
+    RotaIA,
     RagBloco,
     ColunaDinamica,
     TabelaDinamica,

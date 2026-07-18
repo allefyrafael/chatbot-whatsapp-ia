@@ -29,6 +29,20 @@ def test_reset_apaga_tudo_e_volta_para_setup(admin_client, config_empresa, admin
     assert db_session.query(RagBloco).count() == 0
 
 
+def test_reset_limpa_tambem_rotas_e_sessoes(admin_client, config_empresa, admin, db_session):
+    """Tabelas novas precisam entrar no reset, senão o onboarding não recomeça limpo."""
+    from app.models import RotaIA, SessaoChat
+
+    db_session.add(RotaIA(nome="R", descricao="d", operacao="buscar", tabela="itens", coluna_filtro="nome"))
+    db_session.add(SessaoChat(numero="5561999998888", etapa="aguardando_valor"))
+    db_session.commit()
+
+    admin_client.post("/painel/config/reset", follow_redirects=False)
+
+    assert db_session.query(RotaIA).count() == 0
+    assert db_session.query(SessaoChat).count() == 0
+
+
 def test_reset_exige_admin(client):
     resp = client.post("/painel/config/reset", follow_redirects=False)
     assert resp.status_code == 303
