@@ -29,6 +29,16 @@
         </dl>
     </section>
 
+    <section class="card">
+        <h3>Banco de dados</h3>
+        <dl class="def-list">
+            <div><dt>Servidor</dt><dd>{{ banco.host or '—' }}</dd></div>
+            <div><dt>Banco</dt><dd><code>{{ banco.banco or '—' }}</code></dd></div>
+            <div><dt>Usuário</dt><dd>{{ banco.usuario or '—' }}</dd></div>
+        </dl>
+        <a href="/painel/config/banco" class="btn btn-sm" style="margin-top:10px">Alterar conexão</a>
+    </section>
+
     <section class="card danger-zone">
         <h3>Zona de perigo</h3>
         <p class="ajuda">Apaga <strong>todos os dados</strong> (empresa, admins, produtos, IA e conexão)

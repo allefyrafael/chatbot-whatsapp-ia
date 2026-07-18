@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from sqlalchemy import create_engine, text
 
@@ -35,6 +35,26 @@ def validar_nome_banco(banco: str) -> str | None:
             "se ele ainda não existir, eu crio automaticamente para você."
         )
     return None
+
+
+def partes_da_url(url: str) -> dict:
+    """Quebra a DATABASE_URL nos campos do formulário. **Nunca devolve a senha.**
+
+    Usado para pré-preencher a tela de conexão no painel, mostrando ao admin em qual
+    servidor/banco a aplicação está ligada agora.
+    """
+    vazio = {"host": "", "porta": "3306", "usuario": "", "banco": ""}
+    if not url:
+        return vazio
+    padrao = re.match(r"^mysql\+pymysql://([^:]*):([^@]*)@([^:/]+):(\d+)/(.+)$", url.strip())
+    if not padrao:
+        return vazio
+    return {
+        "host": padrao.group(3),
+        "porta": padrao.group(4),
+        "usuario": unquote(padrao.group(1)),
+        "banco": padrao.group(5).split("?")[0],
+    }
 
 
 def montar_url(host: str, porta: str, usuario: str, senha: str, banco: str) -> str:
