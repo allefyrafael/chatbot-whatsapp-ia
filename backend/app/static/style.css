@@ -327,6 +327,47 @@ tbody tr:hover { background: #fafbfc; }
 .preview-preco { font-weight: 700; font-size: 18px; color: var(--cor-primaria); }
 .preview-preco.is-consulta { color: var(--cor-texto-2); font-style: italic; font-size: 15px; }
 
+/* ---------- Assistente de configuração (wizard) ---------- */
+body.wizard-body { display: flex; overflow: auto; }
+.wizard-wrap { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 32px 24px; }
+.wizard { width: 100%; max-width: 980px; }
+.wizard-head { margin-bottom: 18px; }
+.wizard-passo {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--cor-primaria); background: var(--cor-primaria-soft);
+    padding: 4px 10px; border-radius: 999px; margin-bottom: 8px;
+}
+.wizard-head h1 { font-size: 24px; }
+.wizard-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; align-items: start; }
+.campo-linha { display: flex; gap: 12px; }
+.avancado { border-top: 1px dashed var(--cor-borda); padding-top: 12px; }
+.avancado summary { cursor: pointer; font-size: 13px; color: var(--cor-texto-2); font-weight: 500; }
+.ajuda-card { background: #fbfcfe; }
+.onde-achar { margin: 12px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.onde-achar > div { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; border-bottom: 1px solid var(--cor-borda); }
+.onde-achar > div:last-child { border-bottom: none; }
+.onde-achar dt { font-weight: 700; font-size: 13px; }
+.onde-achar dd { margin: 0; font-size: 13px; color: var(--cor-texto-2); }
+
+/* ---------- Modal (popup de erro) ---------- */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(16, 24, 40, .55);
+    display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 50;
+    animation: fadeIn .15s ease;
+}
+.modal {
+    background: var(--cor-surface); border-radius: var(--raio); padding: 26px;
+    max-width: 460px; width: 100%; text-align: center; box-shadow: var(--sombra-lg);
+}
+.modal-icone {
+    width: 46px; height: 46px; border-radius: 50%; background: var(--cor-erro-bg);
+    color: var(--cor-perigo); font-size: 26px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;
+}
+.modal h2 { margin-bottom: 8px; color: var(--cor-perigo); }
+.modal-texto { font-size: 14px; color: var(--cor-texto-2); margin-bottom: 18px; text-align: left; line-height: 1.55; }
+.modal-texto code { font-size: 12px; }
+
 /* ---------- Animações ---------- */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(4px); }
@@ -343,7 +384,8 @@ tbody tr:hover { background: #fafbfc; }
     .topbar { flex-wrap: wrap; height: auto; gap: 10px; padding: 10px 14px; }
     .topnav { order: 3; width: 100%; overflow-x: auto; }
     .content { overflow: visible; }
-    .wpp-grid, .rag-grid, .item-grid, .config-grid { grid-template-columns: 1fr; }
+    .wpp-grid, .rag-grid, .item-grid, .config-grid, .wizard-grid { grid-template-columns: 1fr; }
+    .campo-linha { flex-direction: column; }
     .item-preview-wrap { position: static; }
     .pairing-chunk { font-size: 26px; letter-spacing: 4px; }
 }

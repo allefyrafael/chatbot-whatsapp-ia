@@ -15,12 +15,27 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import OperationalError
 
 from app.bootstrap import criar_database_se_nao_existe, garantir_colunas
-from app.database import Base, engine
+from app.database import Base, banco_configurado, get_engine
 from app.deps import NaoAutenticado
-from app.routers import auth, integracao, itens, rag, setup, sistema, tools, webhook, whatsapp
-from app.templating import STATIC_DIR
+from app.routers import (
+    auth,
+    banco,
+    integracao,
+    itens,
+    rag,
+    setup,
+    sistema,
+    tools,
+    webhook,
+    whatsapp,
+)
+from app.templating import STATIC_DIR, templates
+
+# Caminhos liberados quando o banco ainda não foi configurado.
+_LIVRES_SEM_BANCO = ("/configurar-banco", "/static", "/docs", "/redoc", "/openapi.json")
 
 # Descrição em Markdown exibida no topo do Swagger (/docs).
 DESCRICAO = """
@@ -55,10 +70,19 @@ TAGS_METADATA = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Auto-bootstrap: cria o database (se faltar), as tabelas, e completa colunas novas.
-    criar_database_se_nao_existe()
-    Base.metadata.create_all(bind=engine)
-    garantir_colunas(engine)
+    """Prepara o banco no arranque — mas nunca impede o app de subir.
+
+    Se o banco ainda não foi configurado (ou está fora do ar), a aplicação sobe assim
+    mesmo e o painel leva o usuário para o assistente em /configurar-banco.
+    """
+    if banco_configurado():
+        try:
+            criar_database_se_nao_existe()
+            engine = get_engine()
+            Base.metadata.create_all(bind=engine)
+            garantir_colunas(engine)
+        except Exception:  # noqa: BLE001 - banco inacessível não pode derrubar o servidor
+            pass
     yield
 
 
@@ -73,6 +97,7 @@ app = FastAPI(
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+app.include_router(banco.router)
 app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(integracao.router)
@@ -82,6 +107,34 @@ app.include_router(whatsapp.router)
 app.include_router(sistema.router)
 app.include_router(webhook.router)
 app.include_router(tools.router)
+
+
+@app.middleware("http")
+async def exigir_banco_configurado(request: Request, call_next):
+    """Sem banco configurado, todo o painel leva ao assistente /configurar-banco."""
+    caminho = request.url.path
+    if not banco_configurado() and not caminho.startswith(_LIVRES_SEM_BANCO):
+        return RedirectResponse("/configurar-banco", status_code=303)
+    return await call_next(request)
+
+
+@app.exception_handler(OperationalError)
+def banco_fora_do_ar(request: Request, exc: OperationalError):
+    """Banco configurado mas inacessível (IP mudou, instância parada): reabre o assistente."""
+    return templates.TemplateResponse(
+        request,
+        "configurar_banco.html",
+        {
+            "wizard": True,
+            "dados": {"porta": "3306"},
+            "erro": (
+                "Perdi a conexão com o banco. Se o seu IP mudou, atualize a regra do "
+                "<b>Security Group</b> no RDS; se a instância foi parada, inicie-a. "
+                "Você também pode informar outra conexão abaixo."
+            ),
+        },
+        status_code=503,
+    )
 
 
 @app.exception_handler(NaoAutenticado)

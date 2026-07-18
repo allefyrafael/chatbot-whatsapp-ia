@@ -53,47 +53,7 @@ ChatBotModelo\
 
 ---
 
-## 4. Configurar o acesso ao banco (arquivo `.env`)
-
-1. Na pasta `backend`, rode o `run.bat` **uma vez**. Ele vai criar o arquivo `.env` e
-   avisar que falta configurar o banco. (Ou copie `.env.example` para `.env` na mão.)
-2. Abra o arquivo **`backend\.env`** no Bloco de Notas.
-3. Preencha a linha `DATABASE_URL`. O próprio arquivo explica onde achar cada valor:
-
-| Valor | Onde achar no console da AWS (RDS → Databases → seu banco) |
-|---|---|
-| **ENDPOINT** | aba **Connectivity & security** → campo **Endpoint** |
-| **PORTA** | mesma aba → campo **Port** (normalmente `3306`) |
-| **USUARIO** | o **Master username** que você definiu ao criar |
-| **SENHA** | a **Master password** que você definiu ao criar |
-| **BANCO** | aba **Configuration** → campo **DB name** |
-
-O formato é este (troque os valores em MAIÚSCULO):
-
-```
-DATABASE_URL=mysql+pymysql://USUARIO:SENHA@ENDPOINT:3306/BANCO
-```
-
-Ficando parecido com:
-
-```
-DATABASE_URL=mysql+pymysql://admin:MinhaSenha123@chatbot.c9xyzabc.us-east-1.rds.amazonaws.com:3306/chatbot
-```
-
-> **Senha com caractere especial?** Substitua dentro da URL:
-> `@` → `%40` · `:` → `%3A` · `/` → `%2F` · `?` → `%3F` · `#` → `%23`
-
-**TLS (opcional, recomendado pela AWS):** baixe o certificado
-<https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem>, salve num lugar
-simples e preencha no `.env` (use barras normais `/`):
-
-```
-DB_SSL_CA=C:/Users/voce/Downloads/global-bundle.pem
-```
-
----
-
-## 5. Rodar tudo (1 comando)
+## 4. Rodar tudo (1 comando)
 
 1. Confirme que o **Docker Desktop está aberto** e "Engine running".
 2. Abra a pasta **`backend`**.
@@ -105,23 +65,49 @@ O `run.bat` faz tudo:
 |------|----------------|
 | 1 | Cria o ambiente Python (venv) |
 | 2 | Instala as bibliotecas |
-| 3 | Cria o `.env` (se faltar) |
-| 4 | **Testa a conexão com o seu banco no RDS** |
-| 5 | Sobe a **Evolution API** (WhatsApp) no Docker |
-| 6 | Inicia o **painel** em <http://localhost:8000> |
+| 3 | Cria o arquivo de configuração |
+| 4 | Sobe a **Evolution API** (WhatsApp) no Docker |
+| 5 | Inicia o **painel** em <http://localhost:8000> |
 
 Na primeira vez demora alguns minutos. Quando aparecer
 `Uvicorn running on http://0.0.0.0:8000`, está no ar. **Deixe essa janela aberta** — é o
 servidor rodando. Para parar, `Ctrl + C`.
 
-As tabelas do banco são criadas **automaticamente** no primeiro start. Você não precisa
-rodar nenhum SQL na mão.
+---
+
+## 5. Conectar o banco de dados (pela tela)
+
+Abra <http://localhost:8000> no navegador. Como ainda não há banco configurado, você cai
+direto na tela **"Conectar o banco de dados"**, com campos parecidos com os do MySQL
+Workbench. A própria tela mostra, ao lado, **onde achar cada dado** no console da AWS:
+
+| Campo | Onde achar (RDS → Databases → seu banco) |
+|---|---|
+| **Hostname** | aba **Connectivity & security** → campo **Endpoint** |
+| **Porta** | mesma aba → **Port** (normalmente `3306`) |
+| **Username** | o **Master username** definido ao criar o banco |
+| **Password** | a **Master password** definida ao criar o banco |
+| **Database** | aba **Configuration** → campo **DB name** |
+
+Clique em **"Testar conexão e continuar"**:
+
+- **Deu certo** → a configuração é salva, as tabelas são criadas automaticamente e você
+  segue para o cadastro da empresa. Você não precisa rodar nenhum SQL nem editar arquivo.
+- **Deu errado** → aparece um aviso explicando **exatamente** o que corrigir (por exemplo:
+  senha incorreta, banco inexistente, endpoint errado ou o Security Group bloqueando o
+  seu IP). É só corrigir e testar de novo.
+
+> Não precisa se preocupar com senha que tenha `@`, `:` ou `/` — a tela cuida disso.
+>
+> Em **Opções avançadas** dá para informar o certificado TLS da AWS
+> (<https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem>), se quiser
+> conexão criptografada. É opcional.
 
 ---
 
-## 6. Primeiro acesso
+## 6. Primeiro acesso (empresa, IA e WhatsApp)
 
-Com o servidor rodando, abra: <http://localhost:8000/setup>
+Logo após conectar o banco você já cai em <http://localhost:8000/setup>
 
 1. **Cadastre a empresa**: nome + número de WhatsApp do bot (DDI+DDD, só números,
    ex.: `5561999998888`) + seu nome, e-mail e senha de administrador.
@@ -159,9 +145,8 @@ reaproveita tudo o que já foi instalado e sobe rápido.
 | Problema | Solução |
 |---------|---------|
 | "Python 3.12 nao encontrado" | Instale o Python **3.12** e marque "Add to PATH". Reabra o PowerShell. |
-| "Falta configurar o banco de dados" | Preencha a linha `DATABASE_URL` no `backend\.env` (seção 4 acima). |
-| "Nao consegui conectar no banco" | 1) Security Group liberando 3306 para o **seu IP atual**; 2) "Public access = Yes"; 3) usuário/senha/nome do banco corretos; 4) endpoint copiado inteiro. |
-| Senha do banco não funciona | Tem caractere especial? Troque na URL: `@`→`%40`, `:`→`%3A`, `/`→`%2F`. |
+| Aviso "Não foi possível conectar" na tela do banco | O próprio aviso diz o que corrigir. Os motivos mais comuns: Security Group não libera o **seu IP atual**, "Public access" não está como **Yes**, ou usuário/senha/nome do banco errados. |
+| Trocou de rede/Wi-Fi e o banco parou | Seu IP mudou. Atualize a regra do **Security Group** no RDS com o novo IP ("My IP"). |
 | "o Docker esta fora" / WhatsApp não conecta | Abra o Docker Desktop e espere **"Engine running"**. Rode o `run.bat` de novo. |
 | WhatsApp "sumiu"/caiu | É o Docker que parou. No PowerShell: `wsl --shutdown`, reabra o Docker Desktop e rode o `run.bat`. |
 | Porta 8000 ocupada | Feche outro programa que use a porta 8000. |

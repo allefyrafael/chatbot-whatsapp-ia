@@ -23,15 +23,15 @@ cd backend
 .\run.bat
 ```
 
-Na primeira execução o `run.bat` cria o arquivo `.env` e pede para você preencher a
-`DATABASE_URL` com os dados do seu RDS — o próprio `.env` explica onde achar cada valor
-(endpoint, porta, usuário, senha e nome do banco) no console da AWS.
+O `run.bat` faz **tudo** sozinho: cria o venv (Python 3.12), instala as dependências, sobe
+a **Evolution API (WhatsApp)** no Docker e inicia a aplicação.
 
-Depois disso, o `run.bat` faz **tudo** sozinho: cria o venv (Python 3.12), instala as
-dependências, testa a conexão com o RDS, sobe a **Evolution API (WhatsApp)** no Docker e
-inicia a aplicação. **As tabelas são criadas automaticamente** no primeiro start.
+Na primeira vez, o painel abre um **assistente de conexão** (campos no estilo do MySQL
+Workbench: hostname, porta, username, password e database) que mostra onde achar cada dado
+no console da AWS, **testa a conexão** e só então salva. Deu errado? Ele explica exatamente
+o que corrigir. **As tabelas são criadas automaticamente.**
 
-- App / primeiro acesso: <http://localhost:8000/setup>
+- Primeiro acesso: <http://localhost:8000> (cai no assistente do banco)
 - **Swagger (documentação viva das rotas): <http://localhost:8000/docs>**
 
 > O banco fica **sempre no AWS RDS** — o projeto não sobe MySQL local. O Docker é usado

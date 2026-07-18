@@ -14,7 +14,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.config import settings
 from app.database import Base, get_db
+
+# Os testes usam SQLite em memória (fixture `engine`) e nunca o banco real. Definir a
+# DATABASE_URL aqui deixa a suíte independente do .env da máquina e satisfaz o middleware
+# que exige banco configurado.
+settings.database_url = "sqlite://"
 from app.deps import COOKIE_NAME
 from app.main import app
 from app.models import Configuracao, Usuario

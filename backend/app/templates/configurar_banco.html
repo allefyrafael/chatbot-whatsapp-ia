@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Conectar o banco de dados{% endblock %}
+{% block content %}
+<div class="wizard">
+    <div class="wizard-head">
+        <span class="wizard-passo">Passo 1 de 3</span>
+        <h1>Conectar o banco de dados</h1>
+        <p class="subtitulo">Informe os dados do seu banco MySQL criado no <strong>AWS RDS</strong>.
+            Vamos testar a conexão antes de salvar.</p>
+    </div>
+
+    <div class="wizard-grid">
+        <!-- Formulário estilo MySQL Workbench -->
+        <section class="card">
+            <form method="post" action="/configurar-banco" id="form-banco">
+                <div class="campo-linha">
+                    <label style="flex:3">Hostname (Endpoint)
+                        <input type="text" name="host" value="{{ dados.host or '' }}"
+                            placeholder="meubanco.abc123.us-east-1.rds.amazonaws.com" required autofocus>
+                    </label>
+                    <label style="flex:1">Porta
+                        <input type="text" name="porta" value="{{ dados.porta or '3306' }}" required>
+                    </label>
+                </div>
+
+                <label>Username
+                    <input type="text" name="usuario" value="{{ dados.usuario or '' }}"
+                        placeholder="admin" required>
+                </label>
+
+                <label>Password
+                    <input type="password" name="senha" placeholder="a senha que você criou no RDS" required>
+                </label>
+
+                <label>Nome do banco (Database)
+                    <input type="text" name="banco" value="{{ dados.banco or '' }}"
+                        placeholder="chatbot" required>
+                </label>
+
+                <details class="avancado">
+                    <summary>Opções avançadas (TLS/SSL)</summary>
+                    <label style="margin-top:10px">Certificado da AWS (opcional)
+                        <input type="text" name="ssl_ca" value="{{ dados.ssl_ca or '' }}"
+                            placeholder="C:/Users/voce/Downloads/global-bundle.pem">
+                        <small class="ajuda">Baixe em
+                            <a href="https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+                                target="_blank" rel="noopener">truststore.pki.rds.amazonaws.com</a>.
+                            Deixe vazio para conectar sem TLS.</small>
+                    </label>
+                </details>
+
+                <button type="submit" class="btn btn-primary btn-lg" id="btn-testar">
+                    Testar conexão e continuar
+                </button>
+            </form>
+        </section>
+
+        <!-- Instruções: onde achar cada dado -->
+        <aside class="card ajuda-card">
+            <h3>Onde achar esses dados</h3>
+            <p class="ajuda">No console da AWS: <strong>RDS → Databases →</strong> clique no seu banco.</p>
+            <dl class="onde-achar">
+                <div>
+                    <dt>Hostname</dt>
+                    <dd>aba <strong>Connectivity &amp; security</strong> → campo <strong>Endpoint</strong></dd>
+                </div>
+                <div>
+                    <dt>Porta</dt>
+                    <dd>mesma aba → <strong>Port</strong> (normalmente 3306)</dd>
+                </div>
+                <div>
+                    <dt>Username</dt>
+                    <dd>o <strong>Master username</strong> definido ao criar o banco</dd>
+                </div>
+                <div>
+                    <dt>Password</dt>
+                    <dd>a <strong>Master password</strong> definida ao criar o banco</dd>
+                </div>
+                <div>
+                    <dt>Database</dt>
+                    <dd>aba <strong>Configuration</strong> → <strong>DB name</strong></dd>
+                </div>
+            </dl>
+            <p class="dica">Antes de testar, confirme no RDS: <strong>Public access = Yes</strong> e uma
+                regra no <strong>Security Group</strong> liberando a porta 3306 para o <strong>seu IP</strong>.</p>
+        </aside>
+    </div>
+</div>
+
+<!-- Popup de erro -->
+{% if erro %}
+<div class="modal-overlay" id="modal-erro">
+    <div class="modal">
+        <div class="modal-icone">!</div>
+        <h2>Não foi possível conectar</h2>
+        <p class="modal-texto">{{ erro|safe }}</p>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('modal-erro').remove()">
+            Entendi, vou corrigir
+        </button>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    // Feedback de "testando..." para o aluno saber que algo esta acontecendo.
+    document.getElementById("form-banco").addEventListener("submit", function () {
+        var b = document.getElementById("btn-testar");
+        b.disabled = true;
+        b.textContent = "Testando conexao...";
+    });
+</script>
+{% endblock %}
