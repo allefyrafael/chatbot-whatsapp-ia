@@ -1,4 +1,6 @@
-# run.ps1 — instala e sobe TUDO com um unico comando (use: run.bat).
+# run.ps1 - instala e sobe TUDO com um unico comando (use: run.bat).
+# ATENCAO: mantenha este arquivo em ASCII puro. O Windows PowerShell 5.1 le .ps1 como
+# ANSI; um caractere multi-byte (ex.: travessao) vira "aspa curva" e quebra o parser.
 #
 # Faz, em ordem:
 #   0. Confere pre-requisitos (Python 3.12 e Docker).
@@ -78,7 +80,7 @@ if ($linhaDb -and $linhaDb.Line -match ".*@([^:/?]+)") { $dbHost = $Matches[1] }
 $dbLocal = ($dbHost -eq "" -or $dbHost -eq "localhost" -or $dbHost -eq "127.0.0.1")
 
 if (-not $dbLocal) {
-    Write-Host "[4/6] Banco remoto ($dbHost) — conectando direto (nao subo MySQL local)." -ForegroundColor DarkGray
+    Write-Host "[4/6] Banco remoto ($dbHost) - conectando direto (nao subo MySQL local)." -ForegroundColor DarkGray
 } elseif (Test-Porta 3306) {
     Write-Host "[4/6] MySQL ja responde na porta 3306 (usando o existente)." -ForegroundColor DarkGray
 } elseif ($dockerOk) {
@@ -87,6 +89,22 @@ if (-not $dbLocal) {
     if ($LASTEXITCODE -ne 0) { Falhar "Nao consegui subir o MySQL no Docker." }
 } else {
     Falhar "Sem MySQL na porta 3306 e o Docker esta fora. Abra o Docker Desktop e rode de novo."
+}
+
+# Confere se as credenciais do .env realmente abrem o banco (evita traceback feio depois).
+Write-Host "      Testando a conexao com o banco..." -ForegroundColor DarkGray
+& $py -c "from app.database import engine; engine.connect().close()" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "  X  O banco respondeu, mas recusou as credenciais do .env (host: $dbHost)." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "     Causas mais comuns:" -ForegroundColor Yellow
+    Write-Host "     1) Voce usa o MySQL do Docker, mas o .env tem outras credenciais." -ForegroundColor Yellow
+    Write-Host "        O container usa: chatbot_app / chatbot_app_pass (veja .env.example)." -ForegroundColor Yellow
+    Write-Host "     2) Voce usa um MySQL instalado na maquina, mas ele esta parado." -ForegroundColor Yellow
+    Write-Host "        Inicie o servico (services.msc) e pare o container: docker compose stop mysql" -ForegroundColor Yellow
+    Write-Host "     3) Voce usa AWS RDS: confira endpoint, usuario, senha e o Security Group." -ForegroundColor Yellow
+    Falhar "Ajuste o arquivo backend\.env e rode o run.bat novamente."
 }
 
 # 5. Evolution API (WhatsApp real) -------------------------------------------
