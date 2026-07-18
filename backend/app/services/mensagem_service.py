@@ -11,8 +11,8 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app import groq_service
-from app.models import Item, Mensagem
-from app.services import rag_service
+from app.models import Item, Mensagem, RotaIA
+from app.services import conversa_service, rag_service, rota_service
 
 _BASE = (
     "Você é o atendente virtual de uma empresa, conversando com clientes pelo WhatsApp. "
@@ -58,20 +58,48 @@ def montar_system_prompt(db: Session) -> str:
 
 
 def tratar_mensagem_recebida(db: Session, numero: str, texto: str) -> str:
-    """Registra a mensagem recebida, gera a resposta do bot e a registra também."""
-    registrar(db, numero=numero, direcao="recebida", conteudo=texto)
+    """Ponto de entrada do bot: continua um fluxo, aciona uma rota ou conversa.
 
-    chave = groq_service.get_chave_groq(db)
-    if not chave:
-        resposta = _FALLBACK_SEM_IA
-    else:
-        try:
-            system_prompt = montar_system_prompt(db)
-            resposta = groq_service.responder_com_ia(chave, system_prompt, texto)
-            if not resposta:
-                resposta = _FALLBACK_ERRO
-        except Exception:  # noqa: BLE001 - nunca deixar o webhook quebrar por causa da IA
-            resposta = _FALLBACK_ERRO
+    Ordem: (1) se há uma conversa em andamento, ela tem prioridade; (2) senão a IA decide
+    se alguma rota cadastrada atende o pedido; (3) senão é papo comum (RAG + catálogo).
+    """
+    # SECURITY: se o bot está esperando a senha do admin, ela NÃO vai para o histórico.
+    conteudo_para_log = "[senha omitida]" if conversa_service.deve_mascarar(db, numero) else texto
+    registrar(db, numero=numero, direcao="recebida", conteudo=conteudo_para_log)
+
+    resposta = _gerar_resposta(db, numero, texto)
 
     registrar(db, numero=numero, direcao="enviada", conteudo=resposta)
     return resposta
+
+
+def _gerar_resposta(db: Session, numero: str, texto: str) -> str:
+    # 1) Conversa em andamento (o bot já havia perguntado algo).
+    try:
+        em_andamento = conversa_service.continuar_fluxo(db, numero, texto)
+        if em_andamento is not None:
+            return em_andamento
+    except Exception:  # noqa: BLE001 - erro numa rota não pode derrubar o atendimento
+        return "Tive um problema ao executar essa ação. Pode tentar de novo?"
+
+    chave = groq_service.get_chave_groq(db)
+    if not chave:
+        return _FALLBACK_SEM_IA
+
+    # 2) A IA decide se alguma rota cadastrada atende o pedido.
+    try:
+        rotas = rota_service.listar_rotas(db, apenas_ativas=True)
+        rota_id, valor = groq_service.escolher_acao(chave, texto, rotas)
+        if rota_id:
+            rota = db.get(RotaIA, rota_id)
+            if rota is not None and rota.ativo:
+                return conversa_service.iniciar_rota(db, numero, rota, valor)
+    except Exception:  # noqa: BLE001 - se o roteamento falhar, cai na conversa normal
+        pass
+
+    # 3) Conversa comum (instruções do RAG + catálogo de produtos).
+    try:
+        resposta = groq_service.responder_com_ia(chave, montar_system_prompt(db), texto)
+        return resposta or _FALLBACK_ERRO
+    except Exception:  # noqa: BLE001 - nunca deixar o webhook quebrar por causa da IA
+        return _FALLBACK_ERRO

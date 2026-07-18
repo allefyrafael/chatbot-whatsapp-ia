@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Rotas de IA{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Rotas de IA</h1>
+        <p class="subtitulo">Ações que o chatbot pode executar no seu banco: buscar, cadastrar e excluir.</p>
+    </div>
+    <a class="btn btn-primary" href="/painel/rotas/nova">+ Nova rota</a>
+</div>
+
+<div class="card table-card">
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>Rota</th><th>Ação</th><th>Tabela</th><th>Acesso</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for rota in rotas %}
+                <tr>
+                    <td>
+                        <strong>{{ rota.nome }}</strong>
+                        <div class="ajuda">{{ rota.descricao }}</div>
+                    </td>
+                    <td><span class="badge">{{ rota.operacao }}</span></td>
+                    <td><code>{{ rota.tabela }}</code></td>
+                    <td>
+                        {% if rota.requer_admin %}
+                        <span class="pill pill--aguardando_pareamento">Só admin</span>
+                        {% else %}
+                        <span class="pill pill--desconectado">Livre</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if rota.ativo %}
+                        <span class="pill pill--conectado">Ativa</span>
+                        {% else %}
+                        <span class="pill pill--desconectado">Inativa</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right; white-space:nowrap">
+                        <form method="post" action="/painel/rotas/{{ rota.id }}/alternar" style="display:inline">
+                            <button type="submit" class="btn btn-sm btn-ghost">{{ "Desativar" if rota.ativo else "Ativar" }}</button>
+                        </form>
+                        <form method="post" action="/painel/rotas/{{ rota.id }}/excluir" style="display:inline">
+                            <button type="submit" class="btn btn-sm btn-danger"
+                                onclick="return confirm('Excluir esta rota?')">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="vazio">
+                    Nenhuma rota criada ainda. Clique em <strong>+ Nova rota</strong> para ensinar
+                    uma ação ao seu chatbot.
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -49,6 +49,37 @@ def test_erro_da_ia_cai_no_fallback(db_session, monkeypatch):
     assert "desculpe" in resposta.lower()
 
 
+def test_senha_do_admin_nunca_vai_para_o_historico(db_session, monkeypatch):
+    """Fim a fim: quando o bot espera a senha, o histórico grava '[senha omitida]'."""
+    from sqlalchemy import text as sql
+
+    from app.models import RotaIA, Usuario
+    from app.security import hash_senha
+    from app.services import conversa_service
+
+    db_session.add(Configuracao(id=1, nome_empresa="X", groq_api_key="gsk_fake"))
+    db_session.execute(sql("CREATE TABLE alunos (id INTEGER PRIMARY KEY, nome VARCHAR(100) NOT NULL)"))
+    db_session.add(Usuario(nome="Chefe", email="admin@x.com", senha_hash=hash_senha("SenhaSecreta123")))
+    rota = RotaIA(
+        nome="Excluir aluno", descricao="Exclui aluno", operacao="excluir",
+        tabela="alunos", coluna_filtro="nome", requer_admin=True,
+    )
+    db_session.add(rota)
+    db_session.commit()
+
+    # A IA escolhe a rota restrita; o bot pede e-mail e depois a senha.
+    monkeypatch.setattr(mensagem_service.groq_service, "escolher_acao", lambda *a, **k: (rota.id, None))
+    mensagem_service.tratar_mensagem_recebida(db_session, "5561999998888", "quero excluir um aluno")
+    mensagem_service.tratar_mensagem_recebida(db_session, "5561999998888", "admin@x.com")
+    assert conversa_service.deve_mascarar(db_session, "5561999998888") is True
+
+    mensagem_service.tratar_mensagem_recebida(db_session, "5561999998888", "SenhaSecreta123")
+
+    conteudos = [m.conteudo for m in db_session.query(Mensagem).all()]
+    assert "SenhaSecreta123" not in conteudos
+    assert "[senha omitida]" in conteudos
+
+
 def test_system_prompt_inclui_catalogo(db_session):
     db_session.add(Configuracao(id=1, nome_empresa="X"))
     db_session.add(Item(nome="X-Burguer", descricao="Lanche", preco=None))

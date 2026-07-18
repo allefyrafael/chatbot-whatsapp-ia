@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Nova rota de IA{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Nova rota de IA</h1>
+        <p class="subtitulo">Monte uma ação em etapas. Você não precisa escrever SQL.</p>
+    </div>
+    <a href="/painel/rotas" class="btn btn-ghost btn-sm">← Voltar</a>
+</div>
+
+<div class="item-grid">
+    <section class="card">
+        <form method="post" action="/painel/rotas/nova" id="form-rota">
+            <div class="step">
+                <span class="step-num">1</span>
+                <div style="flex:1">
+                    <label>Nome da rota
+                        <input type="text" name="nome" placeholder="Ex.: Buscar aluno" required>
+                    </label>
+                    <label style="margin-top:10px">Quando a IA deve usar esta rota?
+                        <textarea name="descricao" rows="2" required
+                            placeholder="Ex.: quando o cliente quiser consultar um aluno pelo nome"></textarea>
+                        <span class="ajuda">Escreva naturalmente — é isso que a IA lê para decidir.</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-num">2</span>
+                <label>O que ela faz?
+                    <select name="operacao" id="operacao" required>
+                        <option value="buscar">Buscar registros</option>
+                        <option value="inserir">Cadastrar um registro</option>
+                        <option value="excluir">Excluir um registro</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="step">
+                <span class="step-num">3</span>
+                <div style="flex:1">
+                    <label>Em qual tabela?
+                        <select name="tabela" id="tabela" required>
+                            <option value="">Selecione...</option>
+                            {% for t in tabelas %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+                        </select>
+                        {% if not tabelas %}
+                        <span class="ajuda">Nenhuma tabela encontrada. Crie tabelas no seu banco para usá-las aqui.</span>
+                        {% endif %}
+                    </label>
+
+                    <div id="area-filtro" style="margin-top:10px">
+                        <label>Filtrar por qual coluna?
+                            <select name="coluna_filtro" id="coluna_filtro"></select>
+                            <span class="ajuda">É a coluna que o bot usa para procurar (ex.: nome).</span>
+                        </label>
+                    </div>
+
+                    <div id="area-retorno" style="margin-top:10px">
+                        <span class="ajuda">Quais colunas mostrar na resposta?</span>
+                        <div id="colunas_retorno" class="colunas-check"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-num">4</span>
+                <div style="flex:1">
+                    <label id="campo-pergunta">O que o bot pergunta?
+                        <input type="text" name="pergunta" placeholder="Ex.: Qual o nome do aluno?">
+                    </label>
+                    <label id="campo-vazio" style="margin-top:10px">Se não encontrar nada, responder:
+                        <input type="text" name="mensagem_vazio" placeholder="Ex.: Não encontrei {valor} na base.">
+                        <span class="ajuda">Use <code>{valor}</code> para repetir o que foi pesquisado.</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-num">5</span>
+                <label class="checkbox-inline">
+                    <input type="checkbox" name="requer_admin" value="1">
+                    Exigir administrador (o bot pede e-mail e senha antes de executar)
+                </label>
+            </div>
+
+            <div style="display:flex; gap:8px; margin-top:4px;">
+                <button type="submit" class="btn btn-primary">Criar rota</button>
+                <a href="/painel/rotas" class="btn btn-ghost">Cancelar</a>
+            </div>
+        </form>
+    </section>
+
+    <aside class="item-preview-wrap">
+        <span class="preview-label">Como vai funcionar no WhatsApp</span>
+        <div class="preview-card" style="flex-direction:column; gap:8px;">
+            <div class="chat-bolha chat-cliente" id="prev-cliente">Cliente: "quero buscar um aluno"</div>
+            <div class="chat-bolha chat-bot" id="prev-bot">Bot: "Qual o nome do aluno?"</div>
+            <div class="chat-bolha chat-cliente">Cliente: "Maria"</div>
+            <div class="chat-bolha chat-bot" id="prev-resultado">Bot: mostra o que encontrou</div>
+        </div>
+        <p class="dica">O cliente não precisa usar palavras exatas — a IA entende pela descrição da etapa 1.</p>
+    </aside>
+</div>
+
+<script>
+    (function () {
+        var operacao = document.getElementById("operacao");
+        var tabela = document.getElementById("tabela");
+        var colunaFiltro = document.getElementById("coluna_filtro");
+        var colunasRetorno = document.getElementById("colunas_retorno");
+        var areaFiltro = document.getElementById("area-filtro");
+        var areaRetorno = document.getElementById("area-retorno");
+        var campoPergunta = document.getElementById("campo-pergunta");
+        var campoVazio = document.getElementById("campo-vazio");
+        var prevBot = document.getElementById("prev-bot");
+        var prevResultado = document.getElementById("prev-resultado");
+
+        function carregarColunas() {
+            colunaFiltro.innerHTML = "";
+            colunasRetorno.innerHTML = "";
+            if (!tabela.value) return;
+            // O banco pode estar na AWS: a leitura das colunas leva alguns segundos.
+            colunasRetorno.innerHTML = '<span class="ajuda">Lendo as colunas do banco…</span>';
+            colunaFiltro.innerHTML = '<option>carregando…</option>';
+            colunaFiltro.disabled = true;
+            fetch("/painel/rotas/colunas?tabela=" + encodeURIComponent(tabela.value))
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    colunaFiltro.innerHTML = "";
+                    colunasRetorno.innerHTML = "";
+                    colunaFiltro.disabled = false;
+                    if (!d.colunas || !d.colunas.length) {
+                        colunasRetorno.innerHTML = '<span class="ajuda">Não consegui ler as colunas dessa tabela.</span>';
+                        return;
+                    }
+                    (d.colunas || []).forEach(function (c) {
+                        var op = document.createElement("option");
+                        op.value = c.nome; op.textContent = c.nome;
+                        colunaFiltro.appendChild(op);
+
+                        var lb = document.createElement("label");
+                        lb.className = "checkbox-inline";
+                        lb.innerHTML = '<input type="checkbox" name="colunas_retorno" value="' + c.nome + '" checked> ' +
+                            c.nome + (c.obrigatoria ? ' <span class="badge">obrigatória</span>' : '');
+                        colunasRetorno.appendChild(lb);
+                    });
+                })
+                .catch(function () {
+                    colunaFiltro.disabled = false;
+                    colunasRetorno.innerHTML = '<span class="ajuda">Falha ao ler o banco. Tente selecionar a tabela de novo.</span>';
+                });
+        }
+
+        function atualizarEtapas() {
+            var op = operacao.value;
+            areaFiltro.style.display = (op === "inserir") ? "none" : "";
+            areaRetorno.style.display = (op === "buscar") ? "" : "none";
+            campoPergunta.style.display = (op === "inserir") ? "none" : "";
+            campoVazio.style.display = (op === "buscar") ? "" : "none";
+
+            if (op === "inserir") {
+                prevBot.textContent = 'Bot: pergunta cada campo, avisando o que é obrigatório';
+                prevResultado.textContent = 'Bot: "Pronto! Cadastrei com sucesso."';
+            } else if (op === "excluir") {
+                prevBot.textContent = 'Bot: "Qual registro excluir?"';
+                prevResultado.textContent = 'Bot: pede confirmação antes de excluir';
+            } else {
+                prevBot.textContent = 'Bot: "Qual o nome do aluno?"';
+                prevResultado.textContent = 'Bot: mostra o que encontrou';
+            }
+        }
+
+        tabela.addEventListener("change", carregarColunas);
+        operacao.addEventListener("change", atualizarEtapas);
+        atualizarEtapas();
+    })();
+</script>
+{% endblock %}

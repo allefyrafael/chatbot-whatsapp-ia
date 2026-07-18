@@ -145,3 +145,73 @@ class Mensagem(Base):
     direcao: Mapped[str] = mapped_column(String(10))  # 'recebida' | 'enviada'
     conteudo: Mapped[str] = mapped_column(Text)
     criado_em: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class RotaIA(Base):
+    """Ação que o chatbot pode executar no banco, montada pelo aluno no painel.
+
+    A `descricao` em linguagem natural é o que a IA usa para decidir quando acionar a
+    rota. Os nomes de tabela/coluna aqui são sempre revalidados contra a introspecção
+    real do banco antes de qualquer execução (ver `services/schema_service`).
+    """
+
+    __tablename__ = "rotas_ia"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(100))
+    descricao: Mapped[str] = mapped_column(Text)
+    operacao: Mapped[str] = mapped_column(String(20))  # 'buscar' | 'inserir' | 'excluir'
+    tabela: Mapped[str] = mapped_column(String(64))
+    # Coluna usada no WHERE de buscar/excluir (nula em inserir).
+    coluna_filtro: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Colunas devolvidas na busca, separadas por vírgula. Vazio = todas as liberadas.
+    colunas_retorno: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # O que o bot pergunta ao usuário (ex.: "Qual o nome do usuário?").
+    pergunta: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Resposta quando a busca não acha nada. Pode usar {valor} para repetir o termo.
+    mensagem_vazio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requer_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    campos: Mapped[list["RotaCampo"]] = relationship(
+        back_populates="rota", cascade="all, delete-orphan"
+    )
+
+
+class RotaCampo(Base):
+    """Campo que o bot coleta numa rota de inserção (define o que é obrigatório)."""
+
+    __tablename__ = "rota_campos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    rota_id: Mapped[int] = mapped_column(ForeignKey("rotas_ia.id"))
+    coluna: Mapped[str] = mapped_column(String(64))
+    rotulo: Mapped[str] = mapped_column(String(255))  # como o bot pergunta por ele
+    obrigatorio: Mapped[bool] = mapped_column(Boolean, default=True)
+    ordem: Mapped[int] = mapped_column(default=0)
+
+    rota: Mapped["RotaIA"] = relationship(back_populates="campos")
+
+
+class SessaoChat(Base):
+    """Estado da conversa de um número: rota em andamento e sessão de admin.
+
+    Permite o diálogo em etapas (o bot pergunta, espera a resposta e só então executa)
+    e guarda até quando aquele número está autenticado como administrador.
+    """
+
+    __tablename__ = "sessoes_chat"
+
+    numero: Mapped[str] = mapped_column(String(20), primary_key=True)
+    rota_id_pendente: Mapped[int | None] = mapped_column(nullable=True)
+    # Onde a conversa parou: 'aguardando_valor', 'aguardando_email', 'aguardando_senha',
+    # 'aguardando_campo', 'aguardando_confirmacao'.
+    etapa: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Dados já coletados (JSON serializado) enquanto a rota não é executada.
+    dados_parciais: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # E-mail informado enquanto autentica (antes de validar a senha).
+    email_em_validacao: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    admin_autenticado_ate: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    atualizado_em: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )

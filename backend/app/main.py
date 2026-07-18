@@ -26,6 +26,7 @@ from app.routers import (
     integracao,
     itens,
     rag,
+    rotas,
     setup,
     sistema,
     tools,
@@ -103,6 +104,7 @@ app.include_router(auth.router)
 app.include_router(integracao.router)
 app.include_router(itens.router)
 app.include_router(rag.router)
+app.include_router(rotas.router)
 app.include_router(whatsapp.router)
 app.include_router(sistema.router)
 app.include_router(webhook.router)

@@ -5,6 +5,8 @@ configuracoes.groq_api_key. Este módulo isola o SDK do Groq do resto da aplica�
 a fase 5 (roteador de intenção) vai reaproveitar get_chave_groq()/carregar_cliente().
 """
 
+import json
+
 from groq import AuthenticationError, Groq
 from sqlalchemy.orm import Session
 
@@ -44,6 +46,76 @@ def validar_chave_groq(chave: str) -> tuple[bool, str]:
         return False, "Chave recusada pelo Groq. Verifique se ela é válida e não foi revogada."
     except Exception as exc:  # noqa: BLE001 - queremos reportar qualquer falha ao admin
         return False, f"Não foi possível validar a chave agora ({type(exc).__name__}). Tente novamente."
+
+
+def escolher_acao(chave: str, mensagem_usuario: str, rotas: list) -> tuple[int | None, str | None]:
+    """Pergunta à IA qual rota (se alguma) atende a mensagem, via function calling.
+
+    Cada rota ativa vira uma *tool*; a IA escolhe uma e já extrai o parâmetro quando o
+    usuário o informou ("busca o aluno João" -> rota de busca, valor "João").
+    Retorna `(rota_id, valor)` ou `(None, None)` quando é papo comum.
+    """
+    if not rotas:
+        return None, None
+
+    ferramentas = [
+        {
+            "type": "function",
+            "function": {
+                "name": f"rota_{rota.id}",
+                "description": rota.descricao or rota.nome,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "valor": {
+                            "type": "string",
+                            "description": rota.pergunta or "Valor informado pelo usuário, se houver.",
+                        }
+                    },
+                },
+            },
+        }
+        for rota in rotas
+    ]
+
+    cliente = Groq(api_key=chave)
+    resposta = cliente.chat.completions.create(
+        model=settings.groq_model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Você decide se a mensagem do cliente corresponde a uma das ações "
+                    "disponíveis. Se corresponder, chame a função certa (preencha 'valor' "
+                    "apenas se o usuário já tiver informado). Se for conversa comum, "
+                    "responda normalmente sem chamar função."
+                ),
+            },
+            {"role": "user", "content": mensagem_usuario},
+        ],
+        tools=ferramentas,
+        tool_choice="auto",
+        temperature=0.1,
+        max_tokens=200,
+    )
+
+    chamadas = getattr(resposta.choices[0].message, "tool_calls", None)
+    if not chamadas:
+        return None, None
+
+    chamada = chamadas[0]
+    try:
+        rota_id = int(chamada.function.name.replace("rota_", ""))
+    except (ValueError, AttributeError):
+        return None, None
+
+    valor = None
+    try:
+        argumentos = json.loads(chamada.function.arguments or "{}")
+        valor = (argumentos.get("valor") or "").strip() or None
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    return rota_id, valor
 
 
 def responder_com_ia(chave: str, system_prompt: str, mensagem_usuario: str) -> str:

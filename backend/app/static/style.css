@@ -327,6 +327,14 @@ tbody tr:hover { background: #fafbfc; }
 .preview-preco { font-weight: 700; font-size: 18px; color: var(--cor-primaria); }
 .preview-preco.is-consulta { color: var(--cor-texto-2); font-style: italic; font-size: 15px; }
 
+/* ---------- Rotas de IA: colunas e prévia de conversa ---------- */
+.colunas-check { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; max-height: 130px; overflow-y: auto; }
+.colunas-check .checkbox-inline { font-size: 13px; font-weight: 400; }
+select { padding: 9px 11px; border: 1px solid var(--cor-borda); border-radius: var(--raio-sm); font-size: 14px; font-family: var(--fonte); background: #fff; }
+.chat-bolha { padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.4; max-width: 92%; }
+.chat-cliente { background: #eef0f3; color: var(--cor-texto); align-self: flex-start; border-bottom-left-radius: 3px; }
+.chat-bot { background: var(--cor-primaria-soft); color: #17436f; align-self: flex-end; border-bottom-right-radius: 3px; }
+
 /* ---------- Assistente de configuração (wizard) ---------- */
 body.wizard-body { display: flex; overflow: auto; }
 .wizard-wrap { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 32px 24px; }
