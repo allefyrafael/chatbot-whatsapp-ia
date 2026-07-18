@@ -18,6 +18,24 @@ from app.database import recarregar_engine
 
 ARQUIVO_ENV = Path(__file__).resolve().parent.parent.parent / ".env"
 
+# Schemas internos do MySQL: o RDS nao deixa a aplicacao criar tabelas neles.
+SCHEMAS_RESERVADOS = {"mysql", "information_schema", "performance_schema", "sys"}
+
+
+def validar_nome_banco(banco: str) -> str | None:
+    """Recusa nomes de schema de sistema. Retorna a mensagem de erro, ou None se ok."""
+    nome = (banco or "").strip().lower()
+    if not nome:
+        return "Informe o nome do banco de dados (ex.: <b>chatbot</b>)."
+    if nome in SCHEMAS_RESERVADOS:
+        return (
+            f"<b>{nome}</b> é um banco interno do servidor MySQL (guarda usuários e "
+            "permissões) e a AWS não permite criar tabelas nele. "
+            "Use um nome próprio para a aplicação, por exemplo <b>chatbot</b> — "
+            "se ele ainda não existir, eu crio automaticamente para você."
+        )
+    return None
+
 
 def montar_url(host: str, porta: str, usuario: str, senha: str, banco: str) -> str:
     """Monta a DATABASE_URL escapando usuário/senha (senhas têm @, :, / com frequência)."""
@@ -27,10 +45,18 @@ def montar_url(host: str, porta: str, usuario: str, senha: str, banco: str) -> s
     )
 
 
-def _traduzir_erro(exc: Exception) -> str:
+def traduzir_erro(exc: Exception) -> str:
     """Converte a exceção do driver numa explicação acionável para o aluno."""
     texto = str(exc)
 
+    if "1044" in texto:
+        return (
+            "O usuário e a senha estão corretos, mas ele não tem permissão nesse banco. "
+            "Isso acontece quando se aponta para um banco interno do MySQL (como "
+            "<code>mysql</code>, <code>sys</code> ou <code>information_schema</code>). "
+            "Troque o campo <b>Banco de dados</b> por um nome da sua aplicação, "
+            "por exemplo <b>chatbot</b> — eu crio automaticamente se não existir."
+        )
     if "1045" in texto or "Access denied" in texto:
         return (
             "Usuário ou senha incorretos. Confira o <b>Master username</b> e a "
@@ -69,7 +95,7 @@ def testar_conexao(url: str, ssl_ca: str = "") -> tuple[bool, str]:
             conn.execute(text("SELECT 1"))
         return True, "Conexão bem-sucedida."
     except Exception as exc:  # noqa: BLE001 - qualquer falha vira mensagem amigável
-        return False, _traduzir_erro(exc)
+        return False, traduzir_erro(exc)
     finally:
         engine.dispose()
 

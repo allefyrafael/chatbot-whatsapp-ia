@@ -26,7 +26,7 @@ def test_montar_url_escapa_senha_com_caractere_especial():
     ],
 )
 def test_traduz_erro_tecnico_em_mensagem_util(erro, trecho_esperado):
-    mensagem = banco_config_service._traduzir_erro(Exception(erro))
+    mensagem = banco_config_service.traduzir_erro(Exception(erro))
     assert trecho_esperado.lower() in mensagem.lower()
 
 

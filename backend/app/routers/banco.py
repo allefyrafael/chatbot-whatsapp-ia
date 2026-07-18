@@ -37,6 +37,17 @@ def salvar_banco(
 ):
     """Testa a conexão informada; salva e prepara o banco só se ela funcionar."""
     dados = {"host": host, "porta": porta, "usuario": usuario, "banco": banco, "ssl_ca": ssl_ca}
+
+    # Recusa schemas internos do MySQL antes de tentar (erro classico: apontar p/ 'mysql').
+    erro_nome = banco_config_service.validar_nome_banco(banco)
+    if erro_nome:
+        return templates.TemplateResponse(
+            request,
+            "configurar_banco.html",
+            {"dados": dados, "erro": erro_nome, "wizard": True},
+            status_code=400,
+        )
+
     url = banco_config_service.montar_url(host, porta, usuario, senha, banco)
 
     ok, mensagem = banco_config_service.testar_conexao(url, ssl_ca.strip())
@@ -64,8 +75,8 @@ def salvar_banco(
                 "wizard": True,
                 "dados": dados,
                 "erro": (
-                    "Conectei no servidor, mas não consegui preparar as tabelas. "
-                    f"Detalhe: {str(exc)[:300]}"
+                    "Conectei no servidor, mas não consegui preparar as tabelas.<br>"
+                    + banco_config_service.traduzir_erro(exc)
                 ),
             },
             status_code=400,
