@@ -3,27 +3,19 @@
 # ANSI; um caractere multi-byte (ex.: travessao) vira "aspa curva" e quebra o parser.
 #
 # Faz, em ordem:
-#   0. Confere pre-requisitos (Python 3.12 e Docker).
 #   1. Cria o ambiente virtual (Python 3.12).
 #   2. Instala as dependencias.
 #   3. Cria o .env a partir do .env.example (se faltar).
-#   4. Sobe o MySQL no Docker (se ja nao houver um na porta 3306).
+#   4. Confere e testa a conexao com o banco no AWS RDS.
 #   5. Sobe a Evolution API (WhatsApp) no Docker.
 #   6. Inicia o painel em http://localhost:8000.
 #
-# Pre-requisitos que o ALUNO instala na maquina: Python 3.12 e Docker Desktop.
+# Pre-requisitos: Python 3.12, Docker Desktop e um banco MySQL criado no AWS RDS.
 
 # Continue (nao Stop): comandos nativos como 'docker' escrevem avisos no stderr que, sob
 # 'Stop', o Windows PowerShell 5.1 trataria como erro fatal. Checamos os exit codes na mao.
 $ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
-
-function Test-Porta($porta) {
-    try {
-        $c = New-Object Net.Sockets.TcpClient
-        $c.Connect("localhost", $porta); $c.Close(); return $true
-    } catch { return $false }
-}
 
 function Falhar($msg) {
     Write-Host ""
@@ -47,6 +39,7 @@ cmd /c "docker info >nul 2>nul"
 $dockerOk = ($LASTEXITCODE -eq 0)
 if (-not $dockerOk) {
     Write-Host "  !  Docker nao esta rodando. Abra o Docker Desktop e espere 'Engine running'." -ForegroundColor Yellow
+    Write-Host "     (O painel funciona sem ele; so o WhatsApp precisa do Docker.)" -ForegroundColor Yellow
 }
 
 # 1. venv --------------------------------------------------------------------
@@ -65,49 +58,59 @@ cmd /c "`"$py`" -m pip install -r requirements.txt -q 2>&1"
 if ($LASTEXITCODE -ne 0) { Falhar "Falha ao instalar as dependencias." }
 
 # 3. .env --------------------------------------------------------------------
+$envNovo = $false
 if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
-    Write-Host "[3/6] Criado .env a partir do exemplo." -ForegroundColor Yellow
+    $envNovo = $true
+    Write-Host "[3/6] Criei o arquivo .env a partir do exemplo." -ForegroundColor Yellow
 } else {
     Write-Host "[3/6] .env ja existe (mantido)." -ForegroundColor DarkGray
 }
 
-# 4. MySQL -------------------------------------------------------------------
-# Le o host do banco no .env: se for remoto (ex.: AWS RDS), NAO mexemos no MySQL local.
-$dbHost = ""
-$linhaDb = Select-String -Path ".env" -Pattern "^DATABASE_URL=" | Select-Object -First 1
-if ($linhaDb -and $linhaDb.Line -match ".*@([^:/?]+)") { $dbHost = $Matches[1] }
-$dbLocal = ($dbHost -eq "" -or $dbHost -eq "localhost" -or $dbHost -eq "127.0.0.1")
+# 4. Banco de dados (AWS RDS) ------------------------------------------------
+Write-Host "[4/6] Conferindo o banco de dados (AWS RDS)..." -ForegroundColor Cyan
 
-if (-not $dbLocal) {
-    Write-Host "[4/6] Banco remoto ($dbHost) - conectando direto (nao subo MySQL local)." -ForegroundColor DarkGray
-} elseif (Test-Porta 3306) {
-    Write-Host "[4/6] MySQL ja responde na porta 3306 (usando o existente)." -ForegroundColor DarkGray
-} elseif ($dockerOk) {
-    Write-Host "[4/6] Subindo o MySQL no Docker (aguarde ficar pronto)..." -ForegroundColor Cyan
-    cmd /c "docker compose up -d mysql --wait 2>&1"
-    if ($LASTEXITCODE -ne 0) { Falhar "Nao consegui subir o MySQL no Docker." }
-} else {
-    Falhar "Sem MySQL na porta 3306 e o Docker esta fora. Abra o Docker Desktop e rode de novo."
+$dbUrl = ""
+$linhaDb = Select-String -Path ".env" -Pattern "^DATABASE_URL=" | Select-Object -First 1
+if ($linhaDb) { $dbUrl = ($linhaDb.Line -replace "^DATABASE_URL=", "").Trim() }
+
+if ([string]::IsNullOrWhiteSpace($dbUrl)) {
+    Write-Host ""
+    Write-Host "  >> Falta configurar o banco de dados." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "     1. Abra o arquivo:  backend\.env" -ForegroundColor Yellow
+    Write-Host "     2. Preencha a linha DATABASE_URL com os dados do SEU banco no AWS RDS." -ForegroundColor Yellow
+    Write-Host "        Dentro do proprio arquivo tem o passo a passo de onde achar cada" -ForegroundColor Yellow
+    Write-Host "        valor no console da AWS (endpoint, porta, usuario, senha e banco)." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "     Formato:" -ForegroundColor Yellow
+    Write-Host "     DATABASE_URL=mysql+pymysql://USUARIO:SENHA@ENDPOINT:3306/BANCO" -ForegroundColor Yellow
+    Write-Host ""
+    Falhar "Preencha o DATABASE_URL no backend\.env e rode o run.bat novamente."
 }
 
-# Confere se as credenciais do .env realmente abrem o banco (evita traceback feio depois).
-Write-Host "      Testando a conexao com o banco..." -ForegroundColor DarkGray
+$dbHost = ""
+if ($dbUrl -match ".*@([^:/?]+)") { $dbHost = $Matches[1] }
+Write-Host "      Conectando em: $dbHost" -ForegroundColor DarkGray
+
 & $py -c "from app.database import engine; engine.connect().close()" 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "  X  O banco respondeu, mas recusou as credenciais do .env (host: $dbHost)." -ForegroundColor Red
+    Write-Host "  X  Nao consegui conectar no banco ($dbHost)." -ForegroundColor Red
     Write-Host ""
-    Write-Host "     Causas mais comuns:" -ForegroundColor Yellow
-    Write-Host "     1) Voce usa o MySQL do Docker, mas o .env tem outras credenciais." -ForegroundColor Yellow
-    Write-Host "        O container usa: chatbot_app / chatbot_app_pass (veja .env.example)." -ForegroundColor Yellow
-    Write-Host "     2) Voce usa um MySQL instalado na maquina, mas ele esta parado." -ForegroundColor Yellow
-    Write-Host "        Inicie o servico (services.msc) e pare o container: docker compose stop mysql" -ForegroundColor Yellow
-    Write-Host "     3) Voce usa AWS RDS: confira endpoint, usuario, senha e o Security Group." -ForegroundColor Yellow
-    Falhar "Ajuste o arquivo backend\.env e rode o run.bat novamente."
+    Write-Host "     Verifique, na ordem:" -ForegroundColor Yellow
+    Write-Host "     1) Security Group do RDS: precisa liberar a porta 3306 para o SEU IP." -ForegroundColor Yellow
+    Write-Host "        (Se sua internet mudou de IP, a regra antiga para de funcionar.)" -ForegroundColor Yellow
+    Write-Host "     2) O banco esta com 'Public access' = Yes e status 'Available'." -ForegroundColor Yellow
+    Write-Host "     3) Usuario, senha e nome do banco no .env estao corretos." -ForegroundColor Yellow
+    Write-Host "        Senha com caractere especial? Troque: @ por %40, : por %3A, / por %2F" -ForegroundColor Yellow
+    Write-Host "     4) O endpoint foi copiado inteiro (termina em .rds.amazonaws.com)." -ForegroundColor Yellow
+    Write-Host ""
+    Falhar "Ajuste o backend\.env (ou o Security Group na AWS) e rode novamente."
 }
+Write-Host "      Conexao com o banco OK." -ForegroundColor DarkGray
 
-# 5. Evolution API (WhatsApp real) -------------------------------------------
+# 5. Evolution API (WhatsApp) ------------------------------------------------
 if ($dockerOk) {
     Write-Host "[5/6] Subindo a Evolution API (WhatsApp)..." -ForegroundColor Cyan
     Push-Location "..\evolution"

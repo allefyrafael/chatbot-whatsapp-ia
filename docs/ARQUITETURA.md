@@ -272,8 +272,9 @@ copy .env.example .env           # ajuste a DATABASE_URL
 python -m uvicorn app.main:app --reload
 ```
 
-O database e as tabelas são criados no arranque (`app.bootstrap` + `create_all`). O
-servidor MySQL em si precisa estar rodando (serviço local ou `docker compose up -d`).
+As tabelas são criadas no arranque (`app.bootstrap` + `create_all`). O banco em si é o
+**MySQL no AWS RDS** apontado pela `DATABASE_URL` do `.env` — o projeto não sobe MySQL
+local. O `run.bat` testa essa conexão antes de iniciar a aplicação.
 
 ---
 

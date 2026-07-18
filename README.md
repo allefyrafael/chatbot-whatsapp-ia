@@ -14,24 +14,28 @@ Projeto educacional, construído em fases.
 
 ## Rodar tudo com um comando
 
-Pré-requisitos na máquina: **Python 3.12** e **Docker Desktop** (aberto, "Engine running").
-No Windows, dentro da pasta `backend/`, dê duplo-clique em `run.bat` (ou):
+Pré-requisitos: **Python 3.12**, **Docker Desktop** (aberto, "Engine running") e um
+**banco MySQL no AWS RDS** já criado (com acesso público e o seu IP liberado no
+Security Group).
 
 ```powershell
 cd backend
 .\run.bat
 ```
 
-O `run.bat` faz **tudo** sozinho: cria o venv (Python 3.12), instala as dependências, gera
-o `.env`, sobe o **MySQL** e a **Evolution API (WhatsApp)** no Docker, e inicia a aplicação.
-O banco e as tabelas são criados automaticamente no arranque.
+Na primeira execução o `run.bat` cria o arquivo `.env` e pede para você preencher a
+`DATABASE_URL` com os dados do seu RDS — o próprio `.env` explica onde achar cada valor
+(endpoint, porta, usuário, senha e nome do banco) no console da AWS.
+
+Depois disso, o `run.bat` faz **tudo** sozinho: cria o venv (Python 3.12), instala as
+dependências, testa a conexão com o RDS, sobe a **Evolution API (WhatsApp)** no Docker e
+inicia a aplicação. **As tabelas são criadas automaticamente** no primeiro start.
 
 - App / primeiro acesso: <http://localhost:8000/setup>
 - **Swagger (documentação viva das rotas): <http://localhost:8000/docs>**
 
-> Se você já tem um MySQL rodando na porta 3306, o `run.bat` usa o existente em vez de subir
-> o do Docker. Em Linux/macOS/Git-Bash use `./run.sh` (sobe só a app; suba os serviços com
-> `docker compose`).
+> O banco fica **sempre no AWS RDS** — o projeto não sobe MySQL local. O Docker é usado
+> apenas para o WhatsApp (Evolution API).
 
 > ⚠️ **Python 3.12, não 3.13/3.14.** As dependências (pydantic-core) ainda não suportam o
 > 3.14. O `run.bat` já usa `py -3.12`. Nunca rode `python -m venv .venv` manualmente com o
@@ -118,7 +122,7 @@ ChatBotModelo/
 ├── whatsapp-service/             ← sidecar Node (Baileys) — conexão real do WhatsApp
 └── backend/
     ├── run.ps1 / run.bat / run.sh   ← "um comando para rodar tudo"
-    ├── requirements.txt · pytest.ini · docker-compose.yml · .env.example
+    ├── requirements.txt · pytest.ini · .env.example
     ├── tests/                    ← pytest (SQLite em memória + provedor fake)
     └── app/
         ├── main.py               ← app FastAPI, metadados do Swagger, lifespan
