@@ -13,14 +13,13 @@ def restaurar_config():
     settings.dados_database_url = original
 
 
-def test_configuracoes_mostra_os_dois_bancos(admin_client, config_empresa):
-    """A tela precisa deixar claro que existem duas conexões distintas."""
+def test_configuracoes_mostra_so_o_banco_do_projeto(admin_client, config_empresa):
+    """Uma única conexão visível: a do banco que o aluno criou na AWS."""
     html = admin_client.get("/painel/config").text
-    assert "Banco de configuração (local)" in html   # banco do chatbot
-    assert "Banco do meu projeto (AWS)" in html      # banco do aluno
-    assert "/painel/config/banco" in html
+    assert "Banco de dados do projeto" in html
+    assert "AWS RDS" in html
     assert "/painel/config/banco-dados" in html
-    assert "pill-banco-dados" in html          # status próprio
+    assert "pill-banco-dados" in html
 
 
 def test_tela_do_banco_de_trabalho_abre(admin_client):

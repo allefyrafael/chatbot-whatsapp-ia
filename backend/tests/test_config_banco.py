@@ -37,12 +37,16 @@ def test_admin_ve_conexao_atual_sem_senha(admin_client, monkeypatch):
     assert "SegredoAbc" not in html  # a senha jamais vai para a tela
 
 
-def test_config_mostra_card_do_banco(admin_client, config_empresa):
-    """Configurações traz o card do banco, com status e caminho para editar a conexão."""
+def test_config_nao_menciona_o_banco_de_configuracao(admin_client, config_empresa):
+    """O banco local (Docker) é detalhe de infraestrutura: não pode aparecer no painel.
+
+    O aluno só precisa saber do banco do projeto dele; mostrar os dois lado a lado fazia
+    parecer que eram a mesma coisa.
+    """
     html = admin_client.get("/painel/config").text
-    assert "Banco de configuração (local)" in html
-    assert "/painel/config/banco" in html  # link para a tela de conexão
-    assert "pill-banco" in html  # indicador de conectado / sem conexão
+    assert "Banco de configuração" not in html
+    assert "Docker" not in html
+    assert "pill-banco-dados" in html  # só o status do banco do projeto
 
 
 def test_trocar_para_banco_de_sistema_e_recusado(admin_client):

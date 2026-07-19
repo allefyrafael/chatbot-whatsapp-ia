@@ -31,13 +31,13 @@
 
     <section class="card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <h3 style="margin:0">Banco do meu projeto (AWS)</h3>
+            <h3 style="margin:0">Banco de dados do projeto</h3>
             <span class="pill pill--desconectado" id="pill-banco-dados">
                 <span class="pill-dot"></span> Verificando…
             </span>
         </div>
-        <p class="ajuda" style="margin-top:8px">O banco que <strong>você criou no AWS RDS</strong>.
-            É nele que as <strong>rotas de IA</strong> buscam e cadastram. O "Apagar tudo" nunca toca nele.</p>
+        <p class="ajuda" style="margin-top:8px">O banco MySQL que <strong>você criou no AWS RDS</strong>.
+            É onde ficam as tabelas do seu projeto e onde o chatbot busca e cadastra as informações.</p>
         <dl class="def-list" style="margin-top:6px">
             <div><dt>Servidor</dt><dd>{{ banco_dados.host or '— não conectado —' }}</dd></div>
             <div><dt>Banco</dt><dd><code>{{ banco_dados.banco or '—' }}</code></dd></div>
@@ -46,26 +46,6 @@
         <p class="ajuda" id="msg-banco-dados" style="margin-top:6px"></p>
         <a href="/painel/config/banco-dados" class="btn btn-sm btn-primary" style="margin-top:6px">
             {{ "Alterar conexão" if banco_dados.host else "Conectar meu banco na AWS" }}
-        </a>
-    </section>
-
-    <section class="card">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <h3 style="margin:0">Banco de configuração (local)</h3>
-            <span class="pill pill--desconectado" id="pill-banco">
-                <span class="pill-dot"></span> Verificando…
-            </span>
-        </div>
-        <p class="ajuda" style="margin-top:8px">Guarda apenas os dados do próprio chatbot
-            (empresa, administradores, rotas cadastradas, conversas). Roda no <strong>Docker</strong>,
-            na sua máquina — normalmente você não precisa mexer.</p>
-        <dl class="def-list" style="margin-top:6px">
-            <div><dt>Servidor</dt><dd>{{ banco.host or '—' }}</dd></div>
-            <div><dt>Banco</dt><dd><code>{{ banco.banco or '—' }}</code></dd></div>
-        </dl>
-        <p class="ajuda" id="msg-banco" style="margin-top:6px"></p>
-        <a href="/painel/config/banco" class="btn btn-sm btn-ghost" style="margin-top:6px">
-            Alterar (avançado)
         </a>
     </section>
 
@@ -85,8 +65,6 @@
     // O teste real de conexao vai ate a AWS e pode levar alguns segundos:
     // por isso a pagina abre na hora e o status chega depois.
     (function () {
-        var pill = document.getElementById("pill-banco");
-        var msg = document.getElementById("msg-banco");
         var rotulos = {
             conectado: ["Conectado", "pill--conectado"],
             sem_conexao: ["Sem conexão", "pill--aguardando_pareamento"],
@@ -110,7 +88,6 @@
                 });
         }
 
-        aplicar("pill-banco", "msg-banco", "/painel/config/banco/status", null);
         aplicar("pill-banco-dados", "msg-banco-dados", "/painel/config/banco-dados/status",
                 "Não conectado");
     })();

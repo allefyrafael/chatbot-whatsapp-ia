@@ -12,12 +12,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # .env fica na raiz do backend (backend/.env), independente de onde a app é iniciada.
 _ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
+# Banco de CONFIGURAÇÃO: o container MySQL que o docker-compose sobe (porta 3307 no host,
+# escolhida para não conflitar com um MySQL já instalado na máquina do aluno).
+URL_CONFIG_PADRAO = "mysql+pymysql://chatbot_app:chatbot_app_pass@localhost:3307/chatbot"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(_ENV_FILE), extra="ignore")
 
     # --- Banco da APLICAÇÃO (dados internos do chatbot) ---
-    database_url: str = "mysql+pymysql://chatbot_app:chatbot_app_pass@localhost:3306/chatbot"
+    # Sobe no Docker junto com o run.bat; o aluno nunca precisa mexer nisto.
+    database_url: str = URL_CONFIG_PADRAO
     # Caminho do certificado CA para TLS (ex.: AWS RDS). Vazio = sem TLS explícito.
     db_ssl_ca: str = ""
 

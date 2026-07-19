@@ -20,6 +20,7 @@ from sqlalchemy.exc import OperationalError
 from app.bootstrap import criar_database_se_nao_existe, garantir_colunas
 from app.database import Base, banco_configurado, banco_dados_configurado, get_engine
 from app.deps import NaoAutenticado
+from app.services import banco_config_service
 from app.routers import (
     auth,
     banco,
@@ -76,6 +77,16 @@ async def lifespan(app: FastAPI):
     Se o banco ainda não foi configurado (ou está fora do ar), a aplicação sobe assim
     mesmo e o painel leva o usuário para o assistente em /configurar-banco.
     """
+    # Antes de tocar no banco: conserta .env do formato antigo, em que DATABASE_URL
+    # apontava para o banco do aluno. Sem isso a aplicação gravaria suas tabelas
+    # internas dentro do banco dele na AWS.
+    try:
+        migrado = banco_config_service.migrar_env_legado()
+        if migrado:
+            print(f"[migracao] .env atualizado: {migrado}")
+    except Exception as erro:  # noqa: BLE001 - nunca impedir o servidor de subir
+        print(f"[migracao] nao foi possivel ajustar o .env: {erro}")
+
     if banco_configurado():
         try:
             criar_database_se_nao_existe()
@@ -124,13 +135,27 @@ async def exigir_banco_da_aplicacao(request: Request, call_next):
     return await call_next(request)
 
 
+# Códigos do MySQL que significam de fato "não consegui falar com o servidor".
+# Tudo o mais (coluna inexistente, tabela faltando, acesso negado) é problema de
+# schema/credencial e NÃO pode ser disfarçado de "perdi a conexão": mandar o usuário de
+# volta ao assistente nesses casos cria um loop infinito, porque reconectar não resolve.
+_ERROS_DE_CONEXAO = (2002, 2003, 2005, 2006, 2013, 2055)
+
+
 @app.exception_handler(OperationalError)
 def banco_fora_do_ar(request: Request, exc: OperationalError):
-    """Algum banco ficou inacessível. A mensagem distingue qual, porque a ação é diferente.
+    """Banco inacessível. A mensagem distingue qual, porque a ação é diferente.
 
     - Banco de **configuração** (Docker local): quase sempre é o Docker Desktop parado.
     - Banco do **projeto** (AWS RDS): costuma ser IP novo no Security Group ou instância parada.
+
+    Erros que não são de conexão são repropagados: viram 500 com o traceback real, que é
+    o que permite diagnosticar em vez de girar em círculos no assistente.
     """
+    codigo = exc.orig.args[0] if getattr(exc, "orig", None) and exc.orig.args else None
+    if codigo not in _ERROS_DE_CONEXAO:
+        raise exc
+
     texto = str(exc)
     # O banco local roda no container publicado em localhost; o do aluno é um endpoint remoto.
     parece_local = "localhost" in texto or "127.0.0.1" in texto

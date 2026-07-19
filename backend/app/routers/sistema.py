@@ -123,7 +123,7 @@ def salvar_banco(
     return RedirectResponse("/painel/config/banco?ok=1", status_code=303)
 
 
-@router.get("/banco-dados", response_class=HTMLResponse, summary="Banco de trabalho do aluno")
+@router.get("/banco-dados", response_class=HTMLResponse, summary="Banco de dados do projeto (AWS RDS)")
 def pagina_banco_dados(
     request: Request,
     ok: int = 0,
@@ -137,18 +137,18 @@ def pagina_banco_dados(
             "usuario": usuario,
             "dados": banco_config_service.partes_da_url(settings.dados_database_url),
             "modo_dados": True,
-            "sucesso": "Banco de trabalho atualizado." if ok else None,
+            "sucesso": "Conexão com o banco do projeto atualizada." if ok else None,
         },
     )
 
 
-@router.get("/banco-dados/status", summary="Status do banco de trabalho (JSON)")
+@router.get("/banco-dados/status", summary="Status do banco do projeto (JSON)")
 def status_banco_dados(usuario: Usuario = Depends(get_current_admin)):
     status, mensagem = banco_config_service.status_conexao_dados()
     return {"status": status, "mensagem": mensagem}
 
 
-@router.post("/banco-dados", summary="Trocar o banco de trabalho do aluno")
+@router.post("/banco-dados", summary="Trocar a conexão do banco do projeto")
 def salvar_banco_dados(
     request: Request,
     host: str = Form(...),

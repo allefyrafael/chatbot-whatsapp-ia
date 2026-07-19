@@ -13,7 +13,7 @@ from urllib.parse import quote, unquote
 
 from sqlalchemy import create_engine, text
 
-from app.config import settings
+from app.config import URL_CONFIG_PADRAO, settings
 from app.database import recarregar_engine
 
 ARQUIVO_ENV = Path(__file__).resolve().parent.parent.parent / ".env"
@@ -172,7 +172,7 @@ def status_conexao_dados() -> tuple[str, str]:
         return "nao_configurado", "Conecte o banco que você criou no AWS RDS para as rotas de IA funcionarem."
     ok, mensagem = testar_conexao(settings.dados_database_url, settings.dados_db_ssl_ca or "")
     if ok:
-        return "conectado", "Conexão ativa com o banco de trabalho."
+        return "conectado", "Conexão ativa com o banco do seu projeto."
     return "sem_conexao", mensagem
 
 
@@ -196,6 +196,61 @@ def _substituir_linha(conteudo: str, chave: str, valor: str) -> str:
     if padrao.search(conteudo):
         return padrao.sub(f"{chave}={valor}", conteudo)
     return conteudo.rstrip("\n") + f"\n{chave}={valor}\n"
+
+
+def _e_local(url: str) -> bool:
+    """A conexão aponta para a própria máquina (o container Docker de configuração)?"""
+    return bool(re.search(r"@(localhost|127\.0\.0\.1)[:/]", url or ""))
+
+
+def migrar_env_legado() -> str | None:
+    """Conserta `.env` criados antes da separação dos dois bancos.
+
+    Até a versão anterior, o assistente gravava a conexão do aluno em `DATABASE_URL` —
+    a variável que hoje designa o banco de **configuração** (Docker local). Num `.env`
+    antigo, portanto, a aplicação passaria a gravar suas tabelas internas dentro do banco
+    do aluno na AWS. Isso destrói a separação e, se o schema dele já tiver uma tabela com
+    nome coincidente (`usuarios` é comum), o cadastro inicial quebra com "coluna
+    desconhecida" — um erro que reconectar não resolve.
+
+    Correção: a conexão remota é promovida a `DADOS_DATABASE_URL` (preservando o banco que
+    o aluno já havia conectado) e `DATABASE_URL` volta para o container local.
+    Devolve uma descrição do que foi migrado, ou `None` se não havia nada a fazer.
+    """
+    url_app = (settings.database_url or "").strip()
+    if not url_app or _e_local(url_app):
+        return None  # já está no formato novo
+
+    url_dados = (settings.dados_database_url or "").strip()
+    ssl_app = settings.db_ssl_ca
+
+    conteudo = ARQUIVO_ENV.read_text(encoding="utf-8") if ARQUIVO_ENV.exists() else ""
+    conteudo = _substituir_linha(conteudo, "DATABASE_URL", URL_CONFIG_PADRAO)
+    conteudo = _substituir_linha(conteudo, "DB_SSL_CA", "")
+
+    promoveu = not url_dados
+    if promoveu:
+        conteudo = _substituir_linha(conteudo, "DADOS_DATABASE_URL", url_app)
+        conteudo = _substituir_linha(conteudo, "DADOS_DB_SSL_CA", ssl_app)
+
+    ARQUIVO_ENV.write_text(conteudo, encoding="utf-8")
+
+    settings.database_url = URL_CONFIG_PADRAO
+    settings.db_ssl_ca = ""
+    if promoveu:
+        settings.dados_database_url = url_app
+        settings.dados_db_ssl_ca = ssl_app
+
+    from app.database import recarregar_engine_dados
+
+    recarregar_engine()
+    recarregar_engine_dados()
+
+    return (
+        "conexao remota movida para DADOS_DATABASE_URL (banco do projeto)"
+        if promoveu
+        else "DATABASE_URL devolvida ao container local"
+    )
 
 
 def salvar_configuracao(url: str, ssl_ca: str = "") -> None:
