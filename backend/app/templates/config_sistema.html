@@ -31,38 +31,41 @@
 
     <section class="card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <h3 style="margin:0">Banco de dados</h3>
-            <span class="pill pill--desconectado" id="pill-banco">
+            <h3 style="margin:0">Banco do meu projeto (AWS)</h3>
+            <span class="pill pill--desconectado" id="pill-banco-dados">
                 <span class="pill-dot"></span> Verificando…
             </span>
         </div>
-        <dl class="def-list" style="margin-top:10px">
-            <div><dt>Servidor</dt><dd>{{ banco.host or '—' }}</dd></div>
-            <div><dt>Banco</dt><dd><code>{{ banco.banco or '—' }}</code></dd></div>
-            <div><dt>Usuário</dt><dd>{{ banco.usuario or '—' }}</dd></div>
+        <p class="ajuda" style="margin-top:8px">O banco que <strong>você criou no AWS RDS</strong>.
+            É nele que as <strong>rotas de IA</strong> buscam e cadastram. O "Apagar tudo" nunca toca nele.</p>
+        <dl class="def-list" style="margin-top:6px">
+            <div><dt>Servidor</dt><dd>{{ banco_dados.host or '— não conectado —' }}</dd></div>
+            <div><dt>Banco</dt><dd><code>{{ banco_dados.banco or '—' }}</code></dd></div>
+            <div><dt>Usuário</dt><dd>{{ banco_dados.usuario or '—' }}</dd></div>
         </dl>
-        <p class="ajuda" id="msg-banco" style="margin-top:6px"></p>
-        <a href="/painel/config/banco" class="btn btn-sm" style="margin-top:6px">
-            {{ "Alterar conexão" if banco.host else "Configurar banco de dados" }}
+        <p class="ajuda" id="msg-banco-dados" style="margin-top:6px"></p>
+        <a href="/painel/config/banco-dados" class="btn btn-sm btn-primary" style="margin-top:6px">
+            {{ "Alterar conexão" if banco_dados.host else "Conectar meu banco na AWS" }}
         </a>
     </section>
 
     <section class="card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <h3 style="margin:0">Banco de trabalho (aluno)</h3>
-            <span class="pill pill--desconectado" id="pill-banco-dados">
+            <h3 style="margin:0">Banco de configuração (local)</h3>
+            <span class="pill pill--desconectado" id="pill-banco">
                 <span class="pill-dot"></span> Verificando…
             </span>
         </div>
-        <p class="ajuda" style="margin-top:8px">Onde as <strong>rotas de IA</strong> leem e gravam.
-            Separado do banco da aplicação — o "Apagar tudo" não toca nele.</p>
+        <p class="ajuda" style="margin-top:8px">Guarda apenas os dados do próprio chatbot
+            (empresa, administradores, rotas cadastradas, conversas). Roda no <strong>Docker</strong>,
+            na sua máquina — normalmente você não precisa mexer.</p>
         <dl class="def-list" style="margin-top:6px">
-            <div><dt>Servidor</dt><dd>{{ banco_dados.host or 'mesmo da aplicação' }}</dd></div>
-            <div><dt>Banco</dt><dd><code>{{ banco_dados.banco or '—' }}</code></dd></div>
+            <div><dt>Servidor</dt><dd>{{ banco.host or '—' }}</dd></div>
+            <div><dt>Banco</dt><dd><code>{{ banco.banco or '—' }}</code></dd></div>
         </dl>
-        <p class="ajuda" id="msg-banco-dados" style="margin-top:6px"></p>
-        <a href="/painel/config/banco-dados" class="btn btn-sm" style="margin-top:6px">
-            {{ "Alterar conexão" if banco_dados.host else "Configurar banco de trabalho" }}
+        <p class="ajuda" id="msg-banco" style="margin-top:6px"></p>
+        <a href="/painel/config/banco" class="btn btn-sm btn-ghost" style="margin-top:6px">
+            Alterar (avançado)
         </a>
     </section>
 
@@ -109,7 +112,7 @@
 
         aplicar("pill-banco", "msg-banco", "/painel/config/banco/status", null);
         aplicar("pill-banco-dados", "msg-banco-dados", "/painel/config/banco-dados/status",
-                "Usa o da aplicação");
+                "Não conectado");
     })();
 </script>
 {% endblock %}

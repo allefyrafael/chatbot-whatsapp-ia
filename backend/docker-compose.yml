@@ -1,0 +1,29 @@
+# MySQL LOCAL do chatbot - guarda apenas a configuracao da aplicacao
+# (empresa, administradores, rotas cadastradas, conversas).
+#
+# O banco de dados DO ALUNO (o do projeto dele: restaurante, loja...) NAO fica aqui:
+# fica na AWS RDS e e configurado pela tela do painel.
+#
+# Porta 3307 no host de proposito: evita conflito com um MySQL ja instalado na maquina.
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-chatbot}
+      MYSQL_USER: ${MYSQL_USER:-chatbot_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-chatbot_app_pass}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_app:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  mysql_app:

@@ -16,8 +16,8 @@ def restaurar_config():
 def test_configuracoes_mostra_os_dois_bancos(admin_client, config_empresa):
     """A tela precisa deixar claro que existem duas conexões distintas."""
     html = admin_client.get("/painel/config").text
-    assert "Banco de dados" in html            # banco da aplicação
-    assert "Banco de trabalho" in html         # banco do aluno
+    assert "Banco de configuração (local)" in html   # banco do chatbot
+    assert "Banco do meu projeto (AWS)" in html      # banco do aluno
     assert "/painel/config/banco" in html
     assert "/painel/config/banco-dados" in html
     assert "pill-banco-dados" in html          # status próprio
@@ -25,7 +25,7 @@ def test_configuracoes_mostra_os_dois_bancos(admin_client, config_empresa):
 
 def test_tela_do_banco_de_trabalho_abre(admin_client):
     html = admin_client.get("/painel/config/banco-dados").text
-    assert "Banco de trabalho" in html
+    assert "Banco do meu projeto (AWS)" in html
     assert 'action="/painel/config/banco-dados"' in html
 
 
@@ -35,11 +35,11 @@ def test_tela_do_banco_de_trabalho_exige_admin(client):
     assert resp.headers["location"] == "/login"
 
 
-def test_status_sem_configuracao_diz_que_usa_o_da_aplicacao(admin_client):
+def test_status_sem_configuracao_pede_para_conectar_a_aws(admin_client):
     settings.dados_database_url = ""
     dados = admin_client.get("/painel/config/banco-dados/status").json()
     assert dados["status"] == "nao_configurado"
-    assert "aplicação" in dados["mensagem"]
+    assert "AWS RDS" in dados["mensagem"]
 
 
 def test_recusa_schema_de_sistema_no_banco_de_trabalho(admin_client):

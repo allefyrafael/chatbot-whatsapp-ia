@@ -39,7 +39,7 @@ def test_testar_conexao_falha_com_host_invalido():
 
 def test_pagina_do_assistente_abre_e_tem_os_campos(client, monkeypatch):
     # Simula "banco ainda nao configurado" para o assistente ser exibido.
-    monkeypatch.setattr("app.routers.banco.banco_configurado", lambda: False)
+    monkeypatch.setattr("app.routers.banco.banco_dados_configurado", lambda: False)
     resp = client.get("/configurar-banco")
     assert resp.status_code == 200
     for campo in ('name="host"', 'name="porta"', 'name="usuario"', 'name="senha"', 'name="banco"'):

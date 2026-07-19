@@ -19,7 +19,8 @@ Este guia leva você do zero até o chatbot rodando e conectado ao WhatsApp.
 - Baixe em <https://www.docker.com/products/docker-desktop/> e instale.
 - Abra o **Docker Desktop** e **espere** o ícone da baleia ficar verde, escrito
   **"Engine running"**. Deixe-o aberto enquanto usar o chatbot.
-- Ele é usado apenas para o **WhatsApp** (Evolution API). O banco de dados fica na AWS.
+- Ele roda o **WhatsApp** (Evolution API) e o **banco de configuração** do chatbot. O banco
+  do **seu projeto** fica na AWS.
 
 ---
 
@@ -66,7 +67,7 @@ O `run.bat` faz tudo:
 | 1 | Cria o ambiente Python (venv) |
 | 2 | Instala as bibliotecas |
 | 3 | Cria o arquivo de configuração |
-| 4 | Sobe a **Evolution API** (WhatsApp) no Docker |
+| 4 | Sobe no Docker o **banco de configuração** do chatbot e a **Evolution API** (WhatsApp) |
 | 5 | Inicia o **painel** em <http://localhost:8000> |
 
 Na primeira vez demora alguns minutos. Quando aparecer
@@ -75,11 +76,13 @@ servidor rodando. Para parar, `Ctrl + C`.
 
 ---
 
-## 5. Conectar o banco de dados (pela tela)
+## 5. Conectar o banco do SEU projeto (pela tela)
 
-Abra <http://localhost:8000> no navegador. Como ainda não há banco configurado, você cai
-direto na tela **"Conectar o banco de dados"**, com campos parecidos com os do MySQL
-Workbench. A própria tela mostra, ao lado, **onde achar cada dado** no console da AWS:
+Abra <http://localhost:8000> no navegador. Você cai direto na tela **"Conectar o banco do
+seu projeto"**, com campos parecidos com os do MySQL Workbench. É aqui que você informa o
+**banco que criou no AWS RDS** — o banco do seu restaurante, loja, escola…
+
+A própria tela mostra, ao lado, **onde achar cada dado** no console da AWS:
 
 | Campo | Onde achar (RDS → Databases → seu banco) |
 |---|---|
@@ -91,8 +94,9 @@ Workbench. A própria tela mostra, ao lado, **onde achar cada dado** no console 
 
 Clique em **"Testar conexão e continuar"**:
 
-- **Deu certo** → a configuração é salva, as tabelas são criadas automaticamente e você
-  segue para o cadastro da empresa. Você não precisa rodar nenhum SQL nem editar arquivo.
+- **Deu certo** → a configuração é salva e você segue para o cadastro da empresa. Você não
+  precisa editar nenhum arquivo. As **tabelas do seu projeto** são suas: crie-as como
+  aprendeu na aula (Workbench ou SQL) — o chatbot só lê e escreve nelas.
 - **Deu errado** → aparece um aviso explicando **exatamente** o que corrigir (por exemplo:
   senha incorreta, banco inexistente, endpoint errado ou o Security Group bloqueando o
   seu IP). É só corrigir e testar de novo.
@@ -107,28 +111,25 @@ Clique em **"Testar conexão e continuar"**:
 
 ## 5.1 Entendendo os DOIS bancos
 
-O sistema trabalha com **dois bancos de dados separados** — e entender isso evita muita
-confusão:
+O sistema usa **dois bancos separados**. Entender isso evita muita confusão:
 
-| | **Banco da aplicação** | **Banco de trabalho (seu)** |
+| | **Banco do SEU projeto** | **Banco de configuração** |
 |---|---|---|
-| **O que guarda** | dados do próprio chatbot: empresa, administradores, produtos, regras da IA, conversas | **as tabelas que você cria** (ex.: `alunos`, `produtos`, `pedidos`) |
-| **Onde fica** | normalmente o **MySQL local** da sua máquina | normalmente o seu **MySQL no AWS RDS** |
-| **Quem usa** | o painel | as **rotas de IA** — é aqui que o bot busca, cadastra e exclui |
-| **Onde configurar** | tela do primeiro acesso (seção 5) | **Configurações → Banco de trabalho** |
+| **O que guarda** | **as tabelas que você cria** (restaurante, loja, escola…) | dados internos do chatbot: empresa, administradores, rotas, conversas |
+| **Onde fica** | **AWS RDS** (o que você criou na aula) | **Docker, na sua máquina** |
+| **Quem usa** | as **rotas de IA** — é aqui que o bot busca e cadastra | só o painel |
+| **Você configura?** | **Sim** — é a tela do primeiro acesso | **Não** — sobe sozinho com o `run.bat` |
 
-**Por que separar?** Duas razões:
+Ou seja: **você só se preocupa com o banco da AWS**. O de configuração é automático.
+
+**Por que separar?**
 
 1. **Segurança** — as tabelas internas do chatbot guardam senhas e a chave da IA. Com os
    bancos separados, uma rota de IA **não consegue nem enxergar** essas tabelas.
 2. **Clareza** — o "Apagar tudo" (Configurações) zera o chatbot, mas **nunca apaga as suas
-   tabelas** do banco de trabalho. Seu exercício fica preservado.
+   tabelas** do banco da AWS. Seu projeto fica preservado.
 
-> **Não configurou o banco de trabalho?** Sem problema: o sistema usa o mesmo banco da
-> aplicação e tudo continua funcionando. A separação é opcional e pode ser feita depois.
-
-Para configurar: **Configurações → Banco de trabalho (aluno) → Configurar banco de
-trabalho**, e preencha com os dados do seu RDS (os mesmos campos da seção 5).
+Para trocar depois: **Configurações → Banco do meu projeto (AWS) → Alterar conexão**.
 
 ---
 

@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 
 from app.bootstrap import criar_database_se_nao_existe, garantir_colunas
-from app.database import Base, banco_configurado, get_engine
+from app.database import Base, banco_configurado, banco_dados_configurado, get_engine
 from app.deps import NaoAutenticado
 from app.routers import (
     auth,
@@ -112,8 +112,12 @@ app.include_router(tools.router)
 
 
 @app.middleware("http")
-async def exigir_banco_configurado(request: Request, call_next):
-    """Sem banco configurado, todo o painel leva ao assistente /configurar-banco."""
+async def exigir_banco_da_aplicacao(request: Request, call_next):
+    """O banco de configuração do chatbot (Docker local) é obrigatório para o painel abrir.
+
+    O banco do projeto do aluno (AWS) **não** bloqueia nada: ele só é necessário para as
+    rotas de IA, e a raiz do site guia o aluno até a tela de conexão.
+    """
     caminho = request.url.path
     if not banco_configurado() and not caminho.startswith(_LIVRES_SEM_BANCO):
         return RedirectResponse("/configurar-banco", status_code=303)
@@ -122,19 +126,32 @@ async def exigir_banco_configurado(request: Request, call_next):
 
 @app.exception_handler(OperationalError)
 def banco_fora_do_ar(request: Request, exc: OperationalError):
-    """Banco configurado mas inacessível (IP mudou, instância parada): reabre o assistente."""
+    """Algum banco ficou inacessível. A mensagem distingue qual, porque a ação é diferente.
+
+    - Banco de **configuração** (Docker local): quase sempre é o Docker Desktop parado.
+    - Banco do **projeto** (AWS RDS): costuma ser IP novo no Security Group ou instância parada.
+    """
+    texto = str(exc)
+    # O banco local roda no container publicado em localhost; o do aluno é um endpoint remoto.
+    parece_local = "localhost" in texto or "127.0.0.1" in texto
+
+    if parece_local:
+        erro = (
+            "Não consegui falar com o <b>banco de configuração</b> do chatbot, que roda no "
+            "<b>Docker</b>. Abra o <b>Docker Desktop</b>, espere aparecer "
+            "<i>“Engine running”</i> e rode o <code>run.bat</code> novamente."
+        )
+    else:
+        erro = (
+            "Perdi a conexão com o <b>banco do seu projeto</b> na AWS. Se o seu IP mudou, "
+            "atualize a regra do <b>Security Group</b> no RDS; se a instância foi parada, "
+            "inicie-a. Você também pode informar outra conexão abaixo."
+        )
+
     return templates.TemplateResponse(
         request,
         "configurar_banco.html",
-        {
-            "wizard": True,
-            "dados": {"porta": "3306"},
-            "erro": (
-                "Perdi a conexão com o banco. Se o seu IP mudou, atualize a regra do "
-                "<b>Security Group</b> no RDS; se a instância foi parada, inicie-a. "
-                "Você também pode informar outra conexão abaixo."
-            ),
-        },
+        {"wizard": True, "dados": {"porta": "3306"}, "erro": erro},
         status_code=503,
     )
 
@@ -145,7 +162,9 @@ def redirecionar_para_login(request: Request, exc: NaoAutenticado):
     return RedirectResponse("/login", status_code=303)
 
 
-@app.get("/", tags=["Sistema"], summary="Raiz — redireciona para o painel")
+@app.get("/", tags=["Sistema"], summary="Raiz — leva ao painel ou à conexão do banco")
 def raiz():
-    """Redireciona a raiz do site para a lista de itens do painel."""
+    """Primeiro acesso: guia até a conexão do banco do projeto (AWS). Depois, vai ao painel."""
+    if not banco_dados_configurado():
+        return RedirectResponse("/configurar-banco", status_code=303)
     return RedirectResponse("/painel/itens", status_code=303)

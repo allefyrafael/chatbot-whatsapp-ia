@@ -24,18 +24,27 @@ cd backend
 ```
 
 O `run.bat` faz **tudo** sozinho: cria o venv (Python 3.12), instala as dependências, sobe
-a **Evolution API (WhatsApp)** no Docker e inicia a aplicação.
+no Docker o **banco de configuração** e a **Evolution API (WhatsApp)**, e inicia a aplicação.
 
 Na primeira vez, o painel abre um **assistente de conexão** (campos no estilo do MySQL
-Workbench: hostname, porta, username, password e database) que mostra onde achar cada dado
-no console da AWS, **testa a conexão** e só então salva. Deu errado? Ele explica exatamente
-o que corrigir. **As tabelas são criadas automaticamente.**
+Workbench: hostname, porta, username, password e database) para você informar o **banco do
+seu projeto no AWS RDS**. Ele mostra onde achar cada dado no console da AWS, **testa a
+conexão** e só então salva. Deu errado? Explica exatamente o que corrigir.
 
 - Primeiro acesso: <http://localhost:8000> (cai no assistente do banco)
 - **Swagger (documentação viva das rotas): <http://localhost:8000/docs>**
 
-> O banco fica **sempre no AWS RDS** — o projeto não sobe MySQL local. O Docker é usado
-> apenas para o WhatsApp (Evolution API).
+### Os dois bancos
+
+| | **Banco do seu projeto** | **Banco de configuração** |
+|---|---|---|
+| Guarda | as tabelas que **você** cria (restaurante, loja…) | dados internos do chatbot: empresa, admins, rotas, conversas |
+| Onde | **AWS RDS** | **Docker, na sua máquina** (porta 3307) |
+| Quem usa | as **rotas de IA** | só o painel |
+| Você configura? | **Sim**, pela tela | **Não**, sobe com o `run.bat` |
+
+Separar os dois é uma **fronteira de segurança**: uma rota de IA não alcança as tabelas
+internas (onde ficam senhas e a chave da IA), e o "Apagar tudo" nunca toca no banco da AWS.
 
 > ⚠️ **Python 3.12, não 3.13/3.14.** As dependências (pydantic-core) ainda não suportam o
 > 3.14. O `run.bat` já usa `py -3.12`. Nunca rode `python -m venv .venv` manualmente com o
@@ -102,7 +111,7 @@ provedor.
 | Camada | Tecnologia |
 |---|---|
 | Backend/API | Python + FastAPI |
-| Banco | MySQL 8 (local ou Docker; AWS RDS em produção) |
+| Banco | MySQL 8 — configuração no Docker local, projeto do aluno no AWS RDS |
 | ORM | SQLAlchemy 2 |
 | Painel web | Jinja2 (renderizado no servidor) |
 | Auth do painel | JWT (python-jose) em cookie httpOnly + bcrypt |

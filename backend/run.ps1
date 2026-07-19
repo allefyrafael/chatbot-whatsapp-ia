@@ -67,32 +67,36 @@ if (-not (Test-Path ".env")) {
     Write-Host "[3/5] .env ja existe (mantido)." -ForegroundColor DarkGray
 }
 
-# Só informa: quem configura o banco e a tela /configurar-banco, no navegador.
-$dbUrl = ""
-$linhaDb = Select-String -Path ".env" -Pattern "^DATABASE_URL=" | Select-Object -First 1
-if ($linhaDb) { $dbUrl = ($linhaDb.Line -replace "^DATABASE_URL=", "").Trim() }
-$precisaConfigurarBanco = [string]::IsNullOrWhiteSpace($dbUrl)
+# O banco da aplicacao e o do Docker (automatico). O que o aluno configura pela tela
+# e o banco DO PROJETO DELE na AWS (DADOS_DATABASE_URL).
+$dadosUrl = ""
+$linhaDados = Select-String -Path ".env" -Pattern "^DADOS_DATABASE_URL=" | Select-Object -First 1
+if ($linhaDados) { $dadosUrl = ($linhaDados.Line -replace "^DADOS_DATABASE_URL=", "").Trim() }
+$precisaConfigurarBanco = [string]::IsNullOrWhiteSpace($dadosUrl)
 
-# 4. Evolution API (WhatsApp) ------------------------------------------------
+# 4. Servicos no Docker: MySQL local (config do chatbot) + Evolution (WhatsApp) ---
 if ($dockerOk) {
-    Write-Host "[4/5] Subindo a Evolution API (WhatsApp)..." -ForegroundColor Cyan
+    Write-Host "[4/5] Subindo o banco local do chatbot (aguarde ficar pronto)..." -ForegroundColor Cyan
+    cmd /c "docker compose up -d --wait 2>&1"
+    if ($LASTEXITCODE -ne 0) { Falhar "Nao consegui subir o banco local (MySQL no Docker)." }
+
+    Write-Host "      Subindo a Evolution API (WhatsApp)..." -ForegroundColor Cyan
     Push-Location "..\evolution"
     cmd /c "docker compose up -d 2>&1"
     Pop-Location
 } else {
-    Write-Host "[4/5] Docker fora: o WhatsApp (Evolution) NAO vai subir." -ForegroundColor Yellow
+    Falhar "O Docker precisa estar rodando: ele hospeda o banco local do chatbot e o WhatsApp. Abra o Docker Desktop e rode de novo."
 }
 
 # 5. Painel ------------------------------------------------------------------
 Write-Host ""
 if ($precisaConfigurarBanco) {
-    Write-Host "  >> PRIMEIRO ACESSO: abra o endereco abaixo para conectar seu banco do AWS RDS." -ForegroundColor Yellow
-    Write-Host "     A propria tela mostra onde achar cada dado no console da AWS." -ForegroundColor Yellow
+    Write-Host "  >> Falta conectar o banco do SEU PROJETO (o que voce criou no AWS RDS)." -ForegroundColor Yellow
+    Write-Host "     O painel abre a tela e mostra onde achar cada dado no console da AWS." -ForegroundColor Yellow
+    Write-Host "     (O banco de configuracao do chatbot ja subiu sozinho no Docker.)" -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "[5/5] Abra:  http://localhost:8000/configurar-banco" -ForegroundColor Green
-} else {
-    Write-Host "[5/5] Painel em  http://localhost:8000   (documentacao em /docs)" -ForegroundColor Green
 }
+Write-Host "[5/5] Painel em  http://localhost:8000   (documentacao em /docs)" -ForegroundColor Green
 Write-Host "      Ctrl+C para parar." -ForegroundColor Green
 Write-Host ""
 & $py -m uvicorn app.main:app --host 0.0.0.0 --port 8000

@@ -167,9 +167,9 @@ def salvar_configuracao_dados(url: str, ssl_ca: str = "") -> None:
 
 
 def status_conexao_dados() -> tuple[str, str]:
-    """Status do banco de trabalho. Sem configuração própria, informa que usa o da aplicação."""
+    """Status do banco do projeto do aluno (AWS)."""
     if not (settings.dados_database_url or "").strip():
-        return "nao_configurado", "Usando o mesmo banco da aplicação (nenhum banco de trabalho separado)."
+        return "nao_configurado", "Conecte o banco que você criou no AWS RDS para as rotas de IA funcionarem."
     ok, mensagem = testar_conexao(settings.dados_database_url, settings.dados_db_ssl_ca or "")
     if ok:
         return "conectado", "Conexão ativa com o banco de trabalho."
