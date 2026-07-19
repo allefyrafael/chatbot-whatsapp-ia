@@ -23,8 +23,11 @@
                     <td>{% if item.preco is not none %}R$ {{ "%.2f"|format(item.preco) }}{% else %}<em>Sob consulta</em>{% endif %}</td>
                     <td style="text-align:right; white-space:nowrap">
                         <a class="btn btn-sm btn-ghost" href="/painel/itens/{{ item.id }}/editar">Editar</a>
-                        <form method="post" action="/painel/itens/{{ item.id }}/excluir" style="display:inline">
-                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remover este item?')">Excluir</button>
+                        <form method="post" action="/painel/itens/{{ item.id }}/excluir" style="display:inline"
+                              data-confirmar-titulo="Remover este item?"
+                              data-confirmar="<b>{{ item.nome }}</b> deixa de aparecer para o bot. Não dá para desfazer."
+                              data-confirmar-ok="Sim, remover" data-perigo>
+                            <button type="submit" class="btn btn-sm btn-danger">Excluir</button>
                         </form>
                     </td>
                 </tr>

@@ -1,9 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Nova rota de IA{% endblock %}
+{% from "icones.html" import icone %}
+{% set editando = rota is not none %}
+{% set acao = "/painel/rotas/" ~ rota.id ~ "/editar" if editando else "/painel/rotas/nova" %}
+{% block title %}{{ "Editar rota" if editando else "Nova rota de IA" }}{% endblock %}
 {% block content %}
 <div class="page-head">
     <div>
-        <h1>Nova rota de IA</h1>
+        <h1>{{ "Editar rota" if editando else "Nova rota de IA" }}</h1>
         <p class="subtitulo">Monte uma ação do bot em 3 blocos. Você não precisa escrever SQL.</p>
     </div>
     <a href="/painel/rotas" class="btn btn-ghost btn-sm">← Voltar</a>
@@ -11,30 +14,32 @@
 
 <div class="rota-grid">
     <section class="card rota-form-card">
-        <form method="post" action="/painel/rotas/nova" id="form-rota">
+        <form method="post" action="{{ acao }}" id="form-rota">
 
             <div class="bloco">
                 <div class="bloco-titulo">
                     <span class="bloco-num">1</span>
                     <h4>O que é esta rota</h4>
-                    <span class="ajuda">— é o que a IA lê para decidir quando usá-la</span>
+                    <span class="ajuda">— a IA lê isto para decidir quando usar</span>
                 </div>
                 <div class="campo-duplo">
                     <label>Nome
                         <input type="text" name="nome" id="f-nome" required
+                               value="{{ rota.nome if editando else '' }}"
                                placeholder="Ex.: Buscar denúncia">
                     </label>
                     <label>O que ela faz
                         <select name="operacao" id="operacao" required>
-                            <option value="buscar">🔍 Buscar registros</option>
-                            <option value="inserir">➕ Cadastrar um registro</option>
-                            <option value="excluir">🗑️ Excluir um registro</option>
+                            {% set op = rota.operacao if editando else 'buscar' %}
+                            <option value="buscar"  {{ 'selected' if op == 'buscar' }}>Buscar registros</option>
+                            <option value="inserir" {{ 'selected' if op == 'inserir' }}>Cadastrar um registro</option>
+                            <option value="excluir" {{ 'selected' if op == 'excluir' }}>Excluir um registro</option>
                         </select>
                     </label>
                 </div>
                 <label style="margin-top:10px">Quando a IA deve usar?
                     <textarea name="descricao" rows="2" required
-                        placeholder="Ex.: quando a pessoa quiser consultar uma denúncia pelo protocolo"></textarea>
+                        placeholder="Ex.: quando a pessoa quiser consultar uma denúncia pelo protocolo">{{ rota.descricao if editando else '' }}</textarea>
                 </label>
             </div>
 
@@ -59,7 +64,7 @@
                     <label>Tabela
                         <select name="tabela" id="tabela" required>
                             <option value="">Selecione...</option>
-                            {% for t in tabelas %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+                            {% for t in tabelas %}<option value="{{ t }}" {{ "selected" if editando and rota.tabela == t }}>{{ t }}</option>{% endfor %}
                         </select>
                         {% if not tabelas %}
                         <span class="ajuda">Nenhuma tabela encontrada no seu banco.</span>
@@ -67,6 +72,10 @@
                     </label>
                     <label id="area-filtro">Buscar pela coluna
                         <select name="coluna_filtro" id="coluna_filtro"></select>
+                        <small class="ajuda aviso-chave" id="aviso-filtro" hidden>
+                            Essa coluna é um <b>código/ID</b>. Quem escrever um nome no
+                            WhatsApp não vai encontrar nada — prefira uma coluna de texto.
+                        </small>
                     </label>
                 </div>
 
@@ -88,33 +97,38 @@
                 <div class="bloco-titulo">
                     <span class="bloco-num">3</span>
                     <h4>Como o bot conversa</h4>
-                    <span class="ajuda">— veja o resultado ao lado enquanto digita</span>
+                    <span class="ajuda">— veja ao lado enquanto digita</span>
                 </div>
                 <div class="campo-duplo">
                     <label id="campo-pergunta">O que o bot pergunta
                         <input type="text" name="pergunta" id="f-pergunta"
+                               value="{{ rota.pergunta or '' if editando else '' }}"
                                placeholder="Ex.: Qual o número do protocolo?">
                     </label>
-                    <label id="campo-vazio">Se não encontrar nada
+                    <label id="campo-vazio" title="Use {valor} para repetir o que a pessoa pesquisou">
+                        Se não encontrar nada
                         <input type="text" name="mensagem_vazio" id="f-vazio"
+                               value="{{ rota.mensagem_vazio or '' if editando else '' }}"
                                placeholder="Ex.: Não encontrei {valor} na base.">
                     </label>
                 </div>
-                <span class="ajuda">Use <code>{valor}</code> para repetir o que a pessoa pesquisou.</span>
+                <label class="trava" id="trava-admin" title="O bot pede e-mail e senha antes de executar">
+                    <input type="checkbox" name="requer_admin" id="f-admin" value="1"
+                           {{ "checked" if editando and rota.requer_admin }}>
+                    {{ icone('alerta') }}
+                    <span class="trava-texto">
+                        <strong>Exigir administrador</strong>
+                        <small>pede e-mail e senha antes de executar</small>
+                    </span>
+                </label>
             </div>
 
             <div class="rota-acoes">
-                <label class="trava" id="trava-admin">
-                    <input type="checkbox" name="requer_admin" id="f-admin" value="1">
-                    <span class="trava-icone" aria-hidden="true">🔒</span>
-                    <span class="trava-texto">
-                        <strong>Exigir administrador</strong>
-                        <small>O bot pede e-mail e senha antes de executar. Use em rotas que
-                            alteram ou expõem dados sensíveis.</small>
-                    </span>
-                </label>
                 <a href="/painel/rotas" class="btn btn-ghost">Cancelar</a>
-                <button type="submit" class="btn btn-primary">Criar rota</button>
+                <button type="submit" class="btn btn-primary btn-com-icone" id="btn-salvar">
+                    {{ icone("salvar") if editando else icone("adicionar") }}
+                    {{ "Salvar alterações" if editando else "Criar rota" }}
+                </button>
             </div>
         </form>
     </section>
@@ -127,6 +141,14 @@
     </aside>
 </div>
 
+<script>
+    /* Valores ja salvos (modo edicao). As colunas so existem depois que a leitura do
+       banco volta, entao o JS usa isto para remarcar o que estava configurado. */
+    var ROTA_SALVA = {{ {
+        "coluna_filtro": rota.coluna_filtro or "",
+        "colunas_retorno": (rota.colunas_retorno or "").split(",") if rota.colunas_retorno else []
+    } | tojson if editando else "null" | safe }};
+</script>
 <script>
     (function () {
         var operacao = document.getElementById("operacao");
@@ -151,6 +173,17 @@
         /* Nomes que indicam dado que não pode ir para uma conversa de WhatsApp.
            Serve só para escolher o padrão do checkbox — o aluno decide no fim. */
         var COLUNA_SENSIVEL = /senha|password|hash|token|secret|cpf|cnpj|rg\b|cartao|cart[aã]o/i;
+
+        var avisoFiltro = document.getElementById("aviso-filtro");
+        var colunasCarregadas = [];
+
+        function avisarSeFiltroForChave() {
+            if (!avisoFiltro) return;
+            var escolhida = colunasCarregadas.filter(function (c) {
+                return c.nome === colunaFiltro.value;
+            })[0];
+            avisoFiltro.hidden = !(escolhida && escolhida.chave);
+        }
 
         function bolha(quem, html) {
             var d = document.createElement("div");
@@ -241,6 +274,7 @@
                     colunaFiltro.innerHTML = "";
                     colunasRetorno.innerHTML = "";
                     colunaFiltro.disabled = false;
+                    colunasCarregadas = d.colunas || [];
                     if (!d.colunas || !d.colunas.length) {
                         colunasRetorno.innerHTML = '<span class="ajuda">Não consegui ler as colunas dessa tabela.</span>';
                         desenharConversa();
@@ -248,7 +282,8 @@
                     }
                     d.colunas.forEach(function (c) {
                         var op = document.createElement("option");
-                        op.value = c.nome; op.textContent = c.nome;
+                        op.value = c.nome;
+                        op.textContent = c.nome + (c.chave ? "  (código/ID)" : "");
                         colunaFiltro.appendChild(op);
 
                         // Colunas sensíveis começam DESMARCADAS: o que estiver marcado aqui
@@ -264,6 +299,23 @@
                             (c.obrigatoria ? ' <span class="badge">obrigatória</span>' : '');
                         colunasRetorno.appendChild(lb);
                     });
+                    if (ROTA_SALVA && ROTA_SALVA.coluna_filtro) {
+                        // Editando: respeita o que ja estava configurado.
+                        colunaFiltro.value = ROTA_SALVA.coluna_filtro;
+                        var marcadas = ROTA_SALVA.colunas_retorno || [];
+                        [].forEach.call(
+                            colunasRetorno.querySelectorAll('input[type="checkbox"]'),
+                            function (c) { c.checked = marcadas.indexOf(c.value) !== -1; }
+                        );
+                        ROTA_SALVA = null;   // so na primeira carga
+                    } else {
+                        // O padrão do <select> seria a 1ª coluna — quase sempre o id, e aí
+                        // a busca por texto nunca acha nada. Preferimos a 1ª de texto.
+                        var boa = d.colunas.filter(function (c) { return c.texto && !c.chave; })[0];
+                        if (boa) colunaFiltro.value = boa.nome;
+                    }
+                    avisarSeFiltroForChave();
+
                     alternarColunas.hidden = false;
                     desenharConversa();
                 })
@@ -286,6 +338,8 @@
             tabela.addEventListener("change", carregarColunas);
             colunasRetorno.addEventListener("change", desenharConversa);
 
+            colunaFiltro.addEventListener("change", avisarSeFiltroForChave);
+
             alternarColunas.addEventListener("click", function () {
                 var caixas = colunasRetorno.querySelectorAll('input[type="checkbox"]');
                 var marcar = alternarColunas.textContent.indexOf("Marcar") !== -1;
@@ -300,7 +354,15 @@
         });
         fAdmin.addEventListener("change", desenharConversa);
 
+        // Sinaliza que esta salvando: sem isso o clique parecia nao ter efeito enquanto
+        // a validacao ia ate o banco na AWS.
+        document.getElementById("form-rota").addEventListener("submit", function () {
+            UI.carregando(document.getElementById("btn-salvar"), "Salvando…");
+        });
+
         atualizarEtapas();
+        // Modo edicao: a tabela ja vem escolhida, entao carrega as colunas de saida.
+        if (tabela && tabela.value) carregarColunas();
     })();
 </script>
 {% endblock %}

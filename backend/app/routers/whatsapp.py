@@ -36,6 +36,21 @@ _MENSAGENS_ERRO = {
     ),
     "numero": "Número inválido. Use de 10 a 15 dígitos, só números (ex.: 5561999998888).",
     "sem_numero": "Nenhum número cadastrado. Informe o número do bot abaixo.",
+    # A Evolution gera o QR para a instância, não para um número específico: um número
+    # inexistente só falha quando o WhatsApp recusa a sessão, e antes disso a tela
+    # ficava muda. Aqui o cancelamento vira uma explicação do que costuma causá-lo.
+    "pareamento_cancelado": (
+        "A conexão foi cancelada antes de concluir. As causas mais comuns são: "
+        "o <b>número não existe</b> no WhatsApp, o QR <b>expirou</b> antes da leitura, "
+        "ou a leitura foi feita por outro aparelho. Confira o número e gere um novo QR."
+    ),
+    "expirado": "O QR Code expirou antes de ser lido. Gere um novo e leia em até 1 minuto.",
+}
+
+_MENSAGENS_OK = {
+    "numero": "Número atualizado. Gere um novo QR para conectar esta linha.",
+    "conectado": "WhatsApp conectado! O bot já recebe mensagens neste número.",
+    "desconectado": "WhatsApp desconectado.",
 }
 
 
@@ -56,6 +71,7 @@ def _segundos_restantes(expira_em: datetime.datetime | None) -> int:
 def pagina_whatsapp(
     request: Request,
     erro: str | None = None,
+    ok: str | None = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_admin),
     provider: WhatsAppProvider = Depends(provedor_whatsapp),
@@ -84,7 +100,10 @@ def pagina_whatsapp(
             "qr": qr,
             "segundos_restantes": _segundos_restantes(config.pairing_expira_em) if config else 0,
             "modo_demo": _modo_demo(),
+            # A tela mostra estes em janela flutuante, nao em bloco no topo.
             "erro": _MENSAGENS_ERRO.get(erro or ""),
+            "sucesso": _MENSAGENS_OK.get(ok or ""),
+            "sem_alerta": True,
         },
     )
 
@@ -144,7 +163,7 @@ def desconectar(
         conexao_service.desconectar(db, provider)
     except Exception:
         pass
-    return RedirectResponse("/painel/whatsapp", status_code=303)
+    return RedirectResponse("/painel/whatsapp?ok=desconectado", status_code=303)
 
 
 @router.post("/numero", summary="Trocar o número do WhatsApp")
@@ -162,4 +181,4 @@ def trocar_numero(
         conexao_service.trocar_numero(db, provider, numero)
     except Exception:
         return RedirectResponse("/painel/whatsapp?erro=indisponivel", status_code=303)
-    return RedirectResponse("/painel/whatsapp", status_code=303)
+    return RedirectResponse("/painel/whatsapp?ok=numero", status_code=303)

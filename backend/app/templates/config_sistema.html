@@ -55,7 +55,13 @@
             e devolve o sistema ao primeiro acesso. Útil para revalidar o onboarding do zero.
             Esta ação <strong>não pode ser desfeita</strong>.</p>
         <form method="post" action="/painel/config/reset"
-              onsubmit="return confirm('Tem certeza? Isso apaga TUDO e não pode ser desfeito.');">
+              data-confirmar-titulo="Apagar tudo e recomeçar?"
+              data-confirmar="Isto apaga a empresa, os administradores, os produtos, o
+                  treinamento da IA e a conexão com o seu banco. <b>Não dá para desfazer.</b>
+                  <br><br>As tabelas do seu projeto na AWS não são tocadas."
+              data-confirmar-ok="Sim, apagar tudo"
+              data-carregando="Apagando…"
+              data-perigo>
             <button type="submit" class="btn btn-danger">Apagar tudo e recomeçar</button>
         </form>
     </section>

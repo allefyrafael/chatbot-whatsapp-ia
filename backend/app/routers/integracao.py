@@ -8,7 +8,7 @@ ou quando o admin pede explicitamente para editá-la (`?forcar=1`, link da navba
 """
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -88,15 +88,24 @@ def salvar_chave_groq(
     """Valida a chave contra o Groq e, se aceita, salva no banco. Exige admin autenticado.
 
     - **Recebe** (form): `groq_api_key` (começa com `gsk_`).
-    - **Sucesso**: salva em `configuracoes.groq_api_key` e redireciona para `/painel/itens`.
-    - **Falha**: reexibe o formulário com a mensagem de erro (status **400**).
+    - **Sucesso**: salva em `configuracoes.groq_api_key` e leva para `/painel/itens`.
+    - **Falha**: devolve a mensagem de erro (status **400**).
+
+    Responde JSON ao formulário (fetch): validar a chave vai até o Groq e demora alguns
+    segundos — sem retorno na tela o admin não sabe se está processando, e o redirect
+    silencioso no fim fazia parecer que nada tinha acontecido.
     """
+    via_fetch = request.headers.get("x-requested-with") == "fetch"
     config = get_configuracao(db)
     if config is None:
+        if via_fetch:
+            return JSONResponse({"ok": True, "destino": "/setup"})
         return RedirectResponse("/setup", status_code=303)
 
     ok, mensagem = validar_chave_groq(groq_api_key)
     if not ok:
+        if via_fetch:
+            return JSONResponse({"ok": False, "erro": mensagem}, status_code=400)
         return templates.TemplateResponse(
             request,
             "groq_setup.html",
@@ -112,4 +121,10 @@ def salvar_chave_groq(
     db.commit()
 
     # Chave validada e salva: não há motivo para continuar na tela de onboarding.
+    if via_fetch:
+        return JSONResponse({
+            "ok": True,
+            "mensagem": "Chave validada e salva. A IA já pode responder.",
+            "destino": DESTINO_OK,
+        })
     return RedirectResponse(DESTINO_OK, status_code=303)

@@ -33,7 +33,9 @@
                         <button type="submit" class="btn btn-sm">Salvar</button>
                         <button type="submit" class="btn btn-sm btn-danger"
                                 formaction="/painel/rag/{{ bloco.id }}/excluir"
-                                onclick="return confirm('Excluir este bloco?')">Excluir</button>
+                                data-confirmar-titulo="Excluir este bloco?"
+                                data-confirmar="O bot deixa de seguir esta instrução."
+                                data-perigo>Excluir</button>
                     </div>
                 </form>
             </details>

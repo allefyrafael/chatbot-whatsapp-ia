@@ -38,12 +38,12 @@
     </section>
 
     <aside class="card" style="display:flex; flex-direction:column; justify-content:center;">
-        <form method="post" action="/painel/integracao/groq">
+        <form method="post" action="/painel/integracao/groq" id="form-groq">
             <label>{{ "Nova chave de API do Groq" if chave_mascarada else "Chave de API do Groq" }}
                 <input type="password" name="groq_api_key" placeholder="gsk_..." autocomplete="off" required
                     {% if not chave_mascarada %}autofocus{% endif %}>
             </label>
-            <button type="submit" class="btn btn-primary">Salvar e validar</button>
+            <button type="submit" class="btn btn-primary" id="btn-groq">Salvar e validar</button>
         </form>
     </aside>
 </div>
@@ -59,4 +59,17 @@
     });
 </script>
 {% endif %}
+
+<script>
+    /* Validar a chave vai ate o Groq e leva alguns segundos. Sem isto o botao ficava
+       mudo e o redirect no fim parecia que nada tinha acontecido. */
+    document.getElementById("form-groq").addEventListener("submit", function (evento) {
+        evento.preventDefault();
+        UI.enviar(this, {
+            botao: document.getElementById("btn-groq"),
+            carregando: "Validando com o Groq…",
+            erro: "Não consegui validar a chave."
+        });
+    });
+</script>
 {% endblock %}

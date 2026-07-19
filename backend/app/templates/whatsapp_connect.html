@@ -31,7 +31,10 @@
             <div class="wpp-ok-icon">✓</div>
             <h2>WhatsApp conectado</h2>
             <p class="wpp-num">Bot ativo em <strong>{{ config.numero_whatsapp }}</strong></p>
-            <form method="post" action="/painel/whatsapp/desconectar">
+            <form method="post" action="/painel/whatsapp/desconectar"
+                  data-confirmar-titulo="Desconectar o WhatsApp?"
+                  data-confirmar="O bot para de receber mensagens até você ler um novo QR Code."
+                  data-confirmar-ok="Sim, desconectar" data-carregando="Desconectando…" data-perigo>
                 <button type="submit" class="btn btn-danger btn-sm">Desconectar</button>
             </form>
         </div>
@@ -71,7 +74,11 @@
         </div>
         <div class="wpp-trocar-numero">
             <h3>Trocar número</h3>
-            <form method="post" action="/painel/whatsapp/numero" class="form-inline">
+            <form method="post" action="/painel/whatsapp/numero" class="form-inline"
+                  data-confirmar-titulo="Trocar o número do bot?"
+                  data-confirmar="A sessão atual do WhatsApp é encerrada e você precisará
+                      ler um novo QR Code com o novo número."
+                  data-confirmar-ok="Sim, trocar" data-carregando="Trocando…">
                 <input type="tel" name="numero_whatsapp"
                     placeholder="{{ config.numero_whatsapp if config else '5561999998888' }}"
                     pattern="[0-9]{10,15}" required>
@@ -81,6 +88,11 @@
     </aside>
 </div>
 
+<script>
+    // Resultado da acao anterior (redirect com ?ok= / ?erro=), em janela flutuante.
+    {% if sucesso %}UI.aviso({{ sucesso | tojson }}, "ok");{% endif %}
+    {% if erro %}UI.aviso({{ erro | tojson }}, "erro");{% endif %}
+</script>
 <script>
     (function () {
         if ("{{ st }}" !== "aguardando_pareamento") return;
@@ -97,6 +109,10 @@
             if (restantes <= 0) {
                 if (elCountdown) elCountdown.textContent = "expirado";
                 clearInterval(tickInterval);
+                UI.aviso(
+                    "O QR Code expirou. Clique em <b>Gerar novo QR</b> e leia em até 1 minuto.",
+                    "erro"
+                );
                 return;
             }
             if (elCountdown) elCountdown.textContent = formata(restantes);
@@ -113,10 +129,17 @@
             }).catch(function () { });
         }, 20000);
 
-        // Detecta conexão e recarrega.
-        setInterval(function () {
+        /* Detecta o fim do pareamento. Antes recarregava sem dizer nada: quando o
+           numero nao existia, a Evolution cancelava a sessao e a tela simplesmente
+           voltava ao inicio, sem o aluno entender o que aconteceu. */
+        var vigia = setInterval(function () {
             fetch("/painel/whatsapp/status").then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) {
-                if (d.status && d.status !== "aguardando_pareamento") location.reload();
+                if (!d.status || d.status === "aguardando_pareamento") return;
+                clearInterval(vigia);
+                var destino = d.status === "conectado"
+                    ? "/painel/whatsapp?ok=conectado"
+                    : "/painel/whatsapp?erro=pareamento_cancelado";
+                location.href = destino;
             }).catch(function () { });
         }, 3000);
     })();

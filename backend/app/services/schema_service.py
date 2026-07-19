@@ -97,21 +97,34 @@ def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:
     e sem autoincremento) — é o que permite o bot avisar o que é obrigatório.
     """
     validar_tabela(origem, tabela)
-    inspetor = inspect(_engine_de(origem))
+    engine = _engine_de(origem)
+    inspetor = inspect(engine)
+
+    try:
+        pk = set(inspetor.get_pk_constraint(tabela).get("constrained_columns") or [])
+    except Exception:  # noqa: BLE001 - sem PK declarada, seguimos pela heurística do nome
+        pk = set()
+
     colunas = []
     for col in inspetor.get_columns(tabela):
-        autoincremento = bool(col.get("autoincrement")) or col.get("name") == "id"
+        nome = col["name"]
+        autoincremento = bool(col.get("autoincrement")) or nome == "id"
         obrigatoria = (
             not col.get("nullable", True)
             and col.get("default") is None
             and not autoincremento
         )
+        tipo = str(col["type"])
         colunas.append(
             {
-                "nome": col["name"],
-                "tipo": str(col["type"]),
+                "nome": nome,
+                "tipo": tipo,
                 "obrigatoria": obrigatoria,
                 "gerada": autoincremento,
+                # `chave` e `texto` orientam o construtor a sugerir uma coluna de filtro
+                # que sirva: filtrar por id faz a busca por nome devolver sempre vazio.
+                "chave": nome in pk or autoincremento or nome.startswith("id_") or nome.endswith("_id"),
+                "texto": any(t in tipo.upper() for t in ("CHAR", "TEXT", "STRING")),
             }
         )
     return colunas

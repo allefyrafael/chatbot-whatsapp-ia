@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "icones.html" import icone %}
 {% block title %}Rotas de IA{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -6,7 +7,9 @@
         <h1>Rotas de IA</h1>
         <p class="subtitulo">Ações que o chatbot pode executar no seu banco: buscar, cadastrar e excluir.</p>
     </div>
-    <a class="btn btn-primary" href="/painel/rotas/nova">+ Nova rota</a>
+    <a class="btn btn-primary btn-com-icone" href="/painel/rotas/nova">
+        {{ icone('adicionar') }} Nova rota
+    </a>
 </div>
 
 <div class="card table-card">
@@ -22,7 +25,7 @@
                         <strong>{{ rota.nome }}</strong>
                         <div class="ajuda">{{ rota.descricao }}</div>
                     </td>
-                    <td><span class="badge">{{ rota.operacao }}</span></td>
+                    <td><span class="badge badge-op badge-op--{{ rota.operacao }}">{{ rota.operacao }}</span></td>
                     <td><code>{{ rota.tabela }}</code></td>
                     <td>
                         {% if rota.requer_admin %}
@@ -38,14 +41,32 @@
                         <span class="pill pill--desconectado">Inativa</span>
                         {% endif %}
                     </td>
-                    <td style="text-align:right; white-space:nowrap">
-                        <form method="post" action="/painel/rotas/{{ rota.id }}/alternar" style="display:inline">
-                            <button type="submit" class="btn btn-sm btn-ghost">{{ "Desativar" if rota.ativo else "Ativar" }}</button>
-                        </form>
-                        <form method="post" action="/painel/rotas/{{ rota.id }}/excluir" style="display:inline">
-                            <button type="submit" class="btn btn-sm btn-danger"
-                                onclick="return confirm('Excluir esta rota?')">Excluir</button>
-                        </form>
+                    <td>
+                        <div class="acoes-linha" style="justify-content:flex-end">
+                            <a href="/painel/rotas/{{ rota.id }}/editar" class="btn-icone"
+                               title="Editar rota" aria-label="Editar rota">
+                                {{ icone('editar') }}
+                            </a>
+
+                            <form method="post" action="/painel/rotas/{{ rota.id }}/alternar">
+                                <button type="submit"
+                                        class="btn-icone {{ '' if rota.ativo else 'btn-icone--ok' }}"
+                                        title="{{ 'Desativar rota' if rota.ativo else 'Ativar rota' }}"
+                                        aria-label="{{ 'Desativar rota' if rota.ativo else 'Ativar rota' }}">
+                                    {{ icone('pausar' if rota.ativo else 'ativar') }}
+                                </button>
+                            </form>
+
+                            <form method="post" action="/painel/rotas/{{ rota.id }}/excluir"
+                                  data-confirmar-titulo="Excluir esta rota?"
+                                  data-confirmar="O bot deixa de executar <b>{{ rota.nome }}</b>. Os dados da tabela não são afetados."
+                                  data-confirmar-ok="Sim, excluir" data-perigo>
+                                <button type="submit" class="btn-icone btn-icone--perigo"
+                                        title="Excluir rota" aria-label="Excluir rota">
+                                    {{ icone('excluir') }}
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% else %}

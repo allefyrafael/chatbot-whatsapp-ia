@@ -46,7 +46,7 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-h1 { font-size: 20px; margin: 0 0 4px; font-weight: 700; letter-spacing: -.01em; }
+h1 { font-size: 19px; margin: 0 0 2px; font-weight: 700; letter-spacing: -.01em; }
 h2 { font-size: 17px; margin: 0 0 8px; font-weight: 600; }
 h3 { font-size: 15px; margin: 0 0 10px; font-weight: 600; }
 p { margin: 0 0 10px; line-height: 1.5; }
@@ -87,10 +87,10 @@ body.app { display: flex; flex-direction: column; }
 .content {
     flex: 1;
     min-height: 0;               /* permite o filho encolher/rolar */
-    padding: 20px;
+    padding: 10px 18px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
     overflow: hidden;
 }
 
@@ -167,12 +167,12 @@ body.auth { display: flex; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---------- Formulários ---------- */
-form { display: flex; flex-direction: column; gap: 12px; }
+form { display: flex; flex-direction: column; gap: 8px; }
 fieldset { border: 1px solid var(--cor-borda); border-radius: var(--raio-sm); padding: 14px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
 legend { font-size: 12px; font-weight: 700; color: var(--cor-texto-2); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
-label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; }
 input, textarea {
-    padding: 9px 11px;
+    padding: 7px 10px;
     border: 1px solid var(--cor-borda);
     border-radius: var(--raio-sm);
     font-size: 14px;
@@ -184,7 +184,7 @@ input:focus, textarea:focus {
     border-color: var(--cor-primaria);
     box-shadow: 0 0 0 3px rgba(31, 111, 235, .1);
 }
-textarea { resize: vertical; }
+textarea { resize: vertical; line-height: 1.35; }
 .ajuda { color: var(--cor-texto-2); font-size: 12px; font-weight: 400; }
 .checkbox-inline { flex-direction: row; align-items: center; gap: 8px; }
 .checkbox-inline input { width: auto; }
@@ -328,7 +328,7 @@ tbody tr:hover { background: #fafbfc; }
 .preview-preco.is-consulta { color: var(--cor-texto-2); font-style: italic; font-size: 15px; }
 
 /* ---------- Rotas de IA: colunas e prévia de conversa ---------- */
-.colunas-check { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; max-height: 130px; overflow-y: auto; }
+.colunas-check { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; max-height: 74px; overflow-y: auto; }
 .colunas-check .checkbox-inline { font-size: 13px; font-weight: 400; }
 select { padding: 9px 11px; border: 1px solid var(--cor-borda); border-radius: var(--raio-sm); font-size: 14px; font-family: var(--fonte); background: #fff; }
 .chat-bolha { padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.4; max-width: 92%; }
@@ -390,12 +390,12 @@ body.wizard-body { display: flex; overflow: auto; }
    O formulario tinha 5 etapas empilhadas e estourava a altura da tela em 100% de zoom.
    Agora sao 3 blocos tematicos com campos lado a lado; o que ainda pode crescer sem
    limite (a lista de colunas) rola dentro da propria caixa, nunca na pagina. */
-.rota-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; }
-.rota-form-card { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.rota-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
+.rota-form-card { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 10px 16px 6px; }
 
-.bloco { border-top: 1px solid var(--cor-borda); padding-top: 12px; margin-top: 12px; }
+.bloco { border-top: 1px solid var(--cor-borda); padding-top: 6px; margin-top: 6px; }
 .bloco:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
-.bloco-titulo { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.bloco-titulo { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
 .bloco-titulo h4 { margin: 0; font-size: 13px; font-weight: 600; }
 .bloco-titulo .ajuda { margin: 0; }
 .bloco-num {
@@ -404,14 +404,14 @@ body.wizard-body { display: flex; overflow: auto; }
     font-weight: 700; font-size: 12px;
     display: flex; align-items: center; justify-content: center;
 }
-.campo-duplo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.campo-duplo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .campo-duplo > * { min-width: 0; }
 .rota-acoes {
     display: flex; align-items: center; gap: 10px;
-    padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--cor-borda);
+    padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--cor-borda);
     flex-shrink: 0;
 }
-.rota-acoes .trava { margin-right: auto; }
+.rota-acoes { justify-content: flex-end; }
 
 .colunas-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .btn-link {
@@ -429,22 +429,23 @@ body.wizard-body { display: flex; overflow: auto; }
 
 /* Opcao de seguranca: precisa saltar aos olhos, e ficar obvio quando esta ligada. */
 .trava {
-    display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
-    padding: 9px 12px; border-radius: var(--raio-sm);
+    /* `flex-direction: row` explicito: a regra generica de `label` empilha em coluna. */
+    display: flex; flex-direction: row; align-items: center; gap: 9px; cursor: pointer;
+    padding: 7px 11px; margin-top: 8px; border-radius: var(--raio-sm);
     border: 1px solid var(--cor-borda); background: var(--cor-surface);
     transition: background var(--transicao), border-color var(--transicao);
-    max-width: 460px; font-weight: 400;
+    font-weight: 400;
 }
 .trava:hover { border-color: #c9ccd3; }
-.trava input { margin-top: 2px; flex-shrink: 0; }
-.trava-icone { font-size: 15px; line-height: 1.25; filter: grayscale(1); opacity: .5; }
-.trava-texto { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.trava input { flex-shrink: 0; }
+.trava > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--cor-texto-2); }
+.trava-texto { display: flex; align-items: baseline; gap: 7px; min-width: 0; flex-wrap: wrap; }
 .trava-texto strong { font-size: 13px; }
 .trava-texto small { font-size: 11.5px; color: var(--cor-texto-2); line-height: 1.35; }
 
 /* Ligada: vira um aviso âmbar, com o cadeado colorido. */
 .trava:has(input:checked) { background: var(--cor-aviso-bg); border-color: #f0dca0; }
-.trava:has(input:checked) .trava-icone { filter: none; opacity: 1; }
+.trava:has(input:checked) > svg { color: var(--cor-aviso); }
 .trava:has(input:checked) .trava-texto strong { color: #8a6300; }
 
 /* Aviso de banco nao conectado: ocupa o lugar do seletor de tabela */
@@ -504,6 +505,87 @@ body.wizard-body { display: flex; overflow: auto; }
 @keyframes plug-vai-e-vem {
     0%, 100% { transform: translateX(-7px); }
     50%      { transform: translateX(2px); }
+}
+
+/* ---------- Retorno visual: avisos flutuantes, confirmacao, carregamento ---------- */
+.ui-avisos {
+    position: fixed; top: 16px; right: 16px; z-index: 60;
+    display: flex; flex-direction: column; gap: 8px;
+    max-width: min(400px, calc(100vw - 32px));
+}
+.ui-aviso {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 12px; border-radius: var(--raio);
+    background: var(--cor-surface); border: 1px solid var(--cor-borda);
+    box-shadow: var(--sombra-lg); font-size: 13px; line-height: 1.45;
+    animation: aviso-entra .18s ease both;
+}
+.ui-aviso--saindo { animation: aviso-sai .2s ease both; }
+.ui-aviso-icone { flex-shrink: 0; display: flex; margin-top: 1px; }
+.ui-aviso-texto { flex: 1; min-width: 0; }
+.ui-aviso-fechar {
+    flex-shrink: 0; background: none; border: 0; cursor: pointer;
+    font-size: 17px; line-height: 1; color: var(--cor-texto-2); padding: 0 2px;
+}
+.ui-aviso--ok   { border-left: 3px solid var(--cor-ok); }
+.ui-aviso--ok   .ui-aviso-icone { color: var(--cor-ok); }
+.ui-aviso--erro { border-left: 3px solid var(--cor-perigo); }
+.ui-aviso--erro .ui-aviso-icone { color: var(--cor-perigo); }
+.ui-aviso--info { border-left: 3px solid var(--cor-primaria); }
+.ui-aviso--info .ui-aviso-icone { color: var(--cor-primaria); }
+
+@keyframes aviso-entra { from { opacity: 0; transform: translateX(12px); } }
+@keyframes aviso-sai   { to   { opacity: 0; transform: translateX(12px); } }
+
+.ui-modal-acoes { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+
+.ui-spinner {
+    display: inline-block; width: 13px; height: 13px; margin-right: 7px;
+    vertical-align: -2px;
+    border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: girar .6s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+.btn--carregando { cursor: progress; opacity: .85; }
+
+/* ---------- Icones de acao (SVG, nao emoji) ---------- */
+.acoes-linha { display: flex; gap: 4px; align-items: center; }
+.btn-icone {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; padding: 0;
+    border: 1px solid var(--cor-borda); border-radius: var(--raio-sm);
+    background: var(--cor-surface); color: var(--cor-texto-2);
+    cursor: pointer; transition: all var(--transicao);
+}
+.btn-icone:hover { color: var(--cor-texto); border-color: #c9ccd3; background: #f7f8fa; text-decoration: none; }
+.btn-icone--perigo:hover { color: var(--cor-perigo); border-color: #eab8b8; background: #fdf3f3; }
+.btn-icone--ok:hover { color: var(--cor-ok); border-color: #a7d7bd; background: #f2fbf6; }
+.btn-icone svg { width: 16px; height: 16px; }
+.btn-com-icone { display: inline-flex; align-items: center; gap: 7px; }
+.btn-com-icone svg { width: 15px; height: 15px; }
+
+/* A operacao da rota fica mais legivel com cor propria que so com texto cinza. */
+.badge-op { text-transform: capitalize; }
+.badge-op--buscar  { background: var(--cor-primaria-soft); color: var(--cor-primaria); }
+.badge-op--inserir { background: var(--cor-ok-bg); color: var(--cor-ok); }
+.badge-op--excluir { background: var(--cor-erro-bg); color: var(--cor-perigo); }
+
+/* ---------- Telas baixas: aperta o construtor de rotas ----------
+   Notebook de 1366x768 sobra pouca altura util depois da barra do navegador. Sem isto o
+   formulario passa a rolar por dentro e o aluno precisa de F11 para ver o botao de
+   salvar. Reduz respiro, nunca conteudo. */
+@media (max-height: 730px) {
+    .content { padding: 8px 16px; gap: 7px; }
+    .rota-form-card { padding: 8px 14px 5px; }
+    #form-rota { gap: 6px; }
+    #form-rota .bloco { padding-top: 5px; margin-top: 5px; }
+    #form-rota .bloco-titulo { margin-bottom: 3px; }
+    #form-rota input, #form-rota textarea, #form-rota select { padding: 5px 9px; }
+    #form-rota textarea { min-height: 38px; }
+    #form-rota .campo-duplo { gap: 8px; }
+    .colunas-check { max-height: 56px; }
+    .rota-acoes { padding-top: 7px; margin-top: 7px; }
+    .trava { padding: 5px 9px; margin-top: 6px; }
 }
 
 /* ---------- Responsivo (mobile: simplifica, empilha) ---------- */

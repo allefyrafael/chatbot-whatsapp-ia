@@ -39,6 +39,26 @@ def _tabelas(db_dados: Session) -> list[str]:
         return []
 
 
+def _validar(
+    db_dados: Session,
+    operacao: str,
+    tabela: str,
+    coluna_filtro: str,
+    colunas_retorno: list[str],
+) -> None:
+    """Fronteira de segurança: nada vai para o SQL sem existir no banco do projeto."""
+    if operacao not in OPERACOES:
+        raise HTTPException(status_code=400, detail="Operação inválida.")
+    try:
+        schema_service.validar_tabela(db_dados, tabela)
+        if coluna_filtro:
+            schema_service.validar_colunas(db_dados, tabela, [coluna_filtro])
+        if colunas_retorno:
+            schema_service.validar_colunas(db_dados, tabela, colunas_retorno)
+    except (schema_service.TabelaNaoPermitida, schema_service.ColunaNaoPermitida) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.get("", response_class=HTMLResponse, summary="Listar rotas de IA")
 def listar(
     request: Request,
@@ -102,17 +122,8 @@ def criar(
     db_dados: Session = Depends(get_db_dados),
     usuario: Usuario = Depends(get_current_admin),
 ):
-    """Valida tabela/colunas no banco de trabalho e grava a rota no banco da aplicação."""
-    if operacao not in OPERACOES:
-        raise HTTPException(status_code=400, detail="Operação inválida.")
-    try:
-        schema_service.validar_tabela(db_dados, tabela)
-        if coluna_filtro:
-            schema_service.validar_colunas(db_dados, tabela, [coluna_filtro])
-        if colunas_retorno:
-            schema_service.validar_colunas(db_dados, tabela, colunas_retorno)
-    except (schema_service.TabelaNaoPermitida, schema_service.ColunaNaoPermitida) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    """Valida tabela/colunas no banco do projeto e grava a rota no banco da aplicação."""
+    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno)
 
     db.add(
         RotaIA(
@@ -127,6 +138,71 @@ def criar(
             requer_admin=bool(requer_admin),
         )
     )
+    db.commit()
+    return RedirectResponse("/painel/rotas", status_code=303)
+
+
+@router.get("/{rota_id}/editar", response_class=HTMLResponse, summary="Formulário de edição")
+def formulario_editar(
+    request: Request,
+    rota_id: int,
+    db: Session = Depends(get_db),
+    db_dados: Session = Depends(get_db_dados),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Reabre o construtor com a rota preenchida.
+
+    Poder corrigir importa: uma rota criada com a coluna de filtro errada nunca acha nada,
+    e sem edição a única saída seria apagar e refazer.
+    """
+    rota = db.get(RotaIA, rota_id)
+    if rota is None:
+        raise HTTPException(status_code=404, detail="Rota não encontrada.")
+    return templates.TemplateResponse(
+        request,
+        "rotas_form.html",
+        {
+            "usuario": usuario,
+            "rota": rota,
+            "tabelas": _tabelas(db_dados),
+            "operacoes": OPERACOES,
+            "banco_conectado": banco_dados_configurado(),
+        },
+    )
+
+
+@router.post("/{rota_id}/editar", summary="Salvar edição da rota")
+def salvar_edicao(
+    rota_id: int,
+    nome: str = Form(...),
+    descricao: str = Form(...),
+    operacao: str = Form(...),
+    tabela: str = Form(...),
+    coluna_filtro: str = Form(""),
+    colunas_retorno: list[str] = Form(default=[]),
+    pergunta: str = Form(""),
+    mensagem_vazio: str = Form(""),
+    requer_admin: str | None = Form(None),
+    db: Session = Depends(get_db),
+    db_dados: Session = Depends(get_db_dados),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Revalida tabela/colunas no banco do projeto e grava por cima."""
+    rota = db.get(RotaIA, rota_id)
+    if rota is None:
+        raise HTTPException(status_code=404, detail="Rota não encontrada.")
+
+    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno)
+
+    rota.nome = nome.strip()
+    rota.descricao = descricao.strip()
+    rota.operacao = operacao
+    rota.tabela = tabela
+    rota.coluna_filtro = coluna_filtro or None
+    rota.colunas_retorno = ",".join(colunas_retorno) or None
+    rota.pergunta = pergunta.strip() or None
+    rota.mensagem_vazio = mensagem_vazio.strip() or None
+    rota.requer_admin = bool(requer_admin)
     db.commit()
     return RedirectResponse("/painel/rotas", status_code=303)
 
