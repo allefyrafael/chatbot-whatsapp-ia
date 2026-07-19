@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db
+from app.database import get_db, get_db_dados
 from app.services import mensagem_service
 from app.whatsapp.factory import provedor_whatsapp
 from app.whatsapp.provider import WhatsAppProvider
@@ -48,6 +48,7 @@ async def receber_mensagem(
     request: Request,
     x_webhook_secret: str | None = Header(default=None),
     db: Session = Depends(get_db),
+    db_dados: Session = Depends(get_db_dados),
     provider: WhatsAppProvider = Depends(provedor_whatsapp),
 ):
     """Valida o secret, extrai a mensagem, aciona o bot e envia a resposta de volta.
@@ -55,6 +56,7 @@ async def receber_mensagem(
     - **401** se o `X-Webhook-Secret` faltar ou estiver errado.
     - Eventos sem texto útil são aceitos e ignorados (200).
     - A resposta do bot é enviada ao cliente via provedor (Evolution/Baileys).
+    - `db` é o banco da aplicação; `db_dados`, o banco de trabalho do aluno.
     """
     if x_webhook_secret != settings.whatsapp_webhook_secret:
         raise HTTPException(status_code=401, detail="Secret do webhook inválido")
@@ -64,7 +66,9 @@ async def receber_mensagem(
     if not numero or not texto:
         return {"ok": True, "ignorado": True}
 
-    resposta = mensagem_service.tratar_mensagem_recebida(db, numero=numero, texto=texto)
+    resposta = mensagem_service.tratar_mensagem_recebida(
+        db, numero=numero, texto=texto, db_dados=db_dados
+    )
     try:
         provider.enviar_mensagem(numero, resposta)
     except Exception:  # noqa: BLE001 - falha de envio não deve quebrar o webhook

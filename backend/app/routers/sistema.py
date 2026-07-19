@@ -28,7 +28,7 @@ def pagina_config(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_admin),
 ):
-    """Mostra dados da empresa e a zona de perigo (reset)."""
+    """Mostra dados da empresa, as duas conexões de banco e a zona de perigo (reset)."""
     config = db.get(Configuracao, 1)
     total_usuarios = db.query(Usuario).count()
     return templates.TemplateResponse(
@@ -39,6 +39,7 @@ def pagina_config(
             "config": config,
             "total_usuarios": total_usuarios,
             "banco": banco_config_service.partes_da_url(settings.database_url),
+            "banco_dados": banco_config_service.partes_da_url(settings.dados_database_url),
         },
     )
 
@@ -59,6 +60,13 @@ def pagina_banco(
             "sucesso": "Conexão atualizada com sucesso." if ok else None,
         },
     )
+
+
+@router.get("/banco/status", summary="Status da conexão com o banco (JSON)")
+def status_banco(usuario: Usuario = Depends(get_current_admin)):
+    """Testa a conexão atual. A tela consulta em segundo plano (o RDS pode demorar)."""
+    status, mensagem = banco_config_service.status_conexao_atual()
+    return {"status": status, "mensagem": mensagem}
 
 
 @router.post("/banco", summary="Trocar a conexão com o banco de dados")
@@ -110,6 +118,64 @@ def salvar_banco(
         )
 
     return RedirectResponse("/painel/config/banco?ok=1", status_code=303)
+
+
+@router.get("/banco-dados", response_class=HTMLResponse, summary="Banco de trabalho do aluno")
+def pagina_banco_dados(
+    request: Request,
+    ok: int = 0,
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Conexão do banco onde as rotas de IA leem e gravam (o banco do aluno)."""
+    return templates.TemplateResponse(
+        request,
+        "config_banco.html",
+        {
+            "usuario": usuario,
+            "dados": banco_config_service.partes_da_url(settings.dados_database_url),
+            "modo_dados": True,
+            "sucesso": "Banco de trabalho atualizado." if ok else None,
+        },
+    )
+
+
+@router.get("/banco-dados/status", summary="Status do banco de trabalho (JSON)")
+def status_banco_dados(usuario: Usuario = Depends(get_current_admin)):
+    status, mensagem = banco_config_service.status_conexao_dados()
+    return {"status": status, "mensagem": mensagem}
+
+
+@router.post("/banco-dados", summary="Trocar o banco de trabalho do aluno")
+def salvar_banco_dados(
+    request: Request,
+    host: str = Form(...),
+    porta: str = Form("3306"),
+    usuario_banco: str = Form(...),
+    senha: str = Form(...),
+    banco: str = Form(...),
+    ssl_ca: str = Form(""),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Testa e salva a conexão do banco de trabalho. Não cria tabelas: o schema é do aluno."""
+    dados = {"host": host, "porta": porta, "usuario": usuario_banco, "banco": banco, "ssl_ca": ssl_ca}
+
+    erro = banco_config_service.validar_nome_banco(banco)
+    if not erro:
+        url = banco_config_service.montar_url(host, porta, usuario_banco, senha, banco)
+        conectou, mensagem = banco_config_service.testar_conexao(url, ssl_ca.strip())
+        if not conectou:
+            erro = mensagem
+
+    if erro:
+        return templates.TemplateResponse(
+            request,
+            "config_banco.html",
+            {"usuario": usuario, "dados": dados, "erro": erro, "modo_dados": True},
+            status_code=400,
+        )
+
+    banco_config_service.salvar_configuracao_dados(url, ssl_ca.strip())
+    return RedirectResponse("/painel/config/banco-dados?ok=1", status_code=303)
 
 
 @router.post("/reset", summary="Apagar tudo (reset do sistema)")

@@ -120,6 +120,44 @@ def testar_conexao(url: str, ssl_ca: str = "") -> tuple[bool, str]:
         engine.dispose()
 
 
+def salvar_configuracao_dados(url: str, ssl_ca: str = "") -> None:
+    """Persiste a conexão do **banco de trabalho do aluno** e recarrega aquele engine."""
+    from app.database import recarregar_engine_dados
+
+    conteudo = ARQUIVO_ENV.read_text(encoding="utf-8") if ARQUIVO_ENV.exists() else ""
+    conteudo = _substituir_linha(conteudo, "DADOS_DATABASE_URL", url)
+    conteudo = _substituir_linha(conteudo, "DADOS_DB_SSL_CA", ssl_ca)
+    ARQUIVO_ENV.write_text(conteudo, encoding="utf-8")
+
+    settings.dados_database_url = url
+    settings.dados_db_ssl_ca = ssl_ca
+    recarregar_engine_dados()
+
+
+def status_conexao_dados() -> tuple[str, str]:
+    """Status do banco de trabalho. Sem configuração própria, informa que usa o da aplicação."""
+    if not (settings.dados_database_url or "").strip():
+        return "nao_configurado", "Usando o mesmo banco da aplicação (nenhum banco de trabalho separado)."
+    ok, mensagem = testar_conexao(settings.dados_database_url, settings.dados_db_ssl_ca or "")
+    if ok:
+        return "conectado", "Conexão ativa com o banco de trabalho."
+    return "sem_conexao", mensagem
+
+
+def status_conexao_atual() -> tuple[str, str]:
+    """Diz se a aplicação está mesmo falando com o banco agora.
+
+    Retorna (status, mensagem), com status em:
+    `nao_configurado` | `conectado` | `sem_conexao`.
+    """
+    if not (settings.database_url or "").strip():
+        return "nao_configurado", "Nenhum banco de dados configurado ainda."
+    ok, mensagem = testar_conexao(settings.database_url, settings.db_ssl_ca or "")
+    if ok:
+        return "conectado", "Conexão ativa com o banco."
+    return "sem_conexao", mensagem
+
+
 def _substituir_linha(conteudo: str, chave: str, valor: str) -> str:
     """Troca (ou acrescenta) `CHAVE=valor` no texto do .env."""
     padrao = re.compile(rf"^{re.escape(chave)}=.*$", re.MULTILINE)

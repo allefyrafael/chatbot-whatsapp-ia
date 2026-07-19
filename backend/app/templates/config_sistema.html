@@ -30,13 +30,40 @@
     </section>
 
     <section class="card">
-        <h3>Banco de dados</h3>
-        <dl class="def-list">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <h3 style="margin:0">Banco de dados</h3>
+            <span class="pill pill--desconectado" id="pill-banco">
+                <span class="pill-dot"></span> Verificando…
+            </span>
+        </div>
+        <dl class="def-list" style="margin-top:10px">
             <div><dt>Servidor</dt><dd>{{ banco.host or '—' }}</dd></div>
             <div><dt>Banco</dt><dd><code>{{ banco.banco or '—' }}</code></dd></div>
             <div><dt>Usuário</dt><dd>{{ banco.usuario or '—' }}</dd></div>
         </dl>
-        <a href="/painel/config/banco" class="btn btn-sm" style="margin-top:10px">Alterar conexão</a>
+        <p class="ajuda" id="msg-banco" style="margin-top:6px"></p>
+        <a href="/painel/config/banco" class="btn btn-sm" style="margin-top:6px">
+            {{ "Alterar conexão" if banco.host else "Configurar banco de dados" }}
+        </a>
+    </section>
+
+    <section class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <h3 style="margin:0">Banco de trabalho (aluno)</h3>
+            <span class="pill pill--desconectado" id="pill-banco-dados">
+                <span class="pill-dot"></span> Verificando…
+            </span>
+        </div>
+        <p class="ajuda" style="margin-top:8px">Onde as <strong>rotas de IA</strong> leem e gravam.
+            Separado do banco da aplicação — o "Apagar tudo" não toca nele.</p>
+        <dl class="def-list" style="margin-top:6px">
+            <div><dt>Servidor</dt><dd>{{ banco_dados.host or 'mesmo da aplicação' }}</dd></div>
+            <div><dt>Banco</dt><dd><code>{{ banco_dados.banco or '—' }}</code></dd></div>
+        </dl>
+        <p class="ajuda" id="msg-banco-dados" style="margin-top:6px"></p>
+        <a href="/painel/config/banco-dados" class="btn btn-sm" style="margin-top:6px">
+            {{ "Alterar conexão" if banco_dados.host else "Configurar banco de trabalho" }}
+        </a>
     </section>
 
     <section class="card danger-zone">
@@ -50,4 +77,39 @@
         </form>
     </section>
 </div>
+
+<script>
+    // O teste real de conexao vai ate a AWS e pode levar alguns segundos:
+    // por isso a pagina abre na hora e o status chega depois.
+    (function () {
+        var pill = document.getElementById("pill-banco");
+        var msg = document.getElementById("msg-banco");
+        var rotulos = {
+            conectado: ["Conectado", "pill--conectado"],
+            sem_conexao: ["Sem conexão", "pill--aguardando_pareamento"],
+            nao_configurado: ["Não configurado", "pill--desconectado"]
+        };
+        function aplicar(idPill, idMsg, url, rotuloNaoConfig) {
+            var p = document.getElementById(idPill);
+            var m = document.getElementById(idMsg);
+            fetch(url)
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    var info = rotulos[d.status] || rotulos.nao_configurado;
+                    var texto = (d.status === "nao_configurado" && rotuloNaoConfig) ? rotuloNaoConfig : info[0];
+                    p.className = "pill " + info[1];
+                    p.innerHTML = '<span class="pill-dot"></span> ' + texto;
+                    if (d.status !== "conectado" && m) m.innerHTML = d.mensagem || "";
+                })
+                .catch(function () {
+                    p.className = "pill pill--desconectado";
+                    p.innerHTML = '<span class="pill-dot"></span> Indisponível';
+                });
+        }
+
+        aplicar("pill-banco", "msg-banco", "/painel/config/banco/status", null);
+        aplicar("pill-banco-dados", "msg-banco-dados", "/painel/config/banco-dados/status",
+                "Usa o da aplicação");
+    })();
+</script>
 {% endblock %}

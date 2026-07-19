@@ -308,6 +308,39 @@ Os blocos de `rag_blocos` (tipo `fazer`/`nao_fazer`, ativos, ordenados) são mon
 `/painel/rag` gerencia os blocos em duas colunas e `/painel/rag/preview` mostra o prompt
 resultante. Assim, o comportamento do bot é configurável sem tocar em código.
 
+## 10.1 As duas conexões de banco
+
+O sistema mantém **dois engines independentes** (`app/database.py`):
+
+| | Banco da **aplicação** | Banco de **trabalho** |
+|---|---|---|
+| Variáveis | `DATABASE_URL`, `DB_SSL_CA` | `DADOS_DATABASE_URL`, `DADOS_DB_SSL_CA` |
+| Acesso | `get_engine()` / `get_db()` | `get_engine_dados()` / `get_db_dados()` |
+| Conteúdo | tabelas internas (models do SQLAlchemy) | tabelas arbitrárias do aluno |
+| Migrações | `create_all` + `garantir_colunas` no arranque | **nenhuma** — o schema é do aluno |
+
+**Fallback:** se `DADOS_DATABASE_URL` estiver vazia, `get_engine_dados()` devolve o engine
+da aplicação. Instalações antigas continuam funcionando sem qualquer mudança.
+
+**Quem usa qual.** Praticamente todo o painel usa só a aplicação. Vão para o banco de
+trabalho apenas: `schema_service` (introspecção), `rota_service` (execução do
+SELECT/INSERT/DELETE) e, no painel, o construtor em `routers/rotas.py`. O
+`conversa_service`/`mensagem_service` recebem **as duas** sessões: estado da conversa na
+aplicação, dados do aluno no banco de trabalho.
+
+**Fronteira de segurança.** Com bancos distintos, a IA não alcança fisicamente as tabelas
+internas. No modo fallback, quem protege é `schema_service.TABELAS_BLOQUEADAS` — que
+inclui `usuarios` (hashes), `configuracoes` (chave do Groq), `mensagens` (histórico),
+`sessoes_chat`, `rotas_ia`/`rota_campos` e `rag_blocos` (as regras do próprio bot).
+Ao criar uma tabela interna nova, **acrescente-a a essa lista**.
+
+**Transações.** Bancos distintos não compartilham transação. Por isso a ordem é sempre
+*executar no banco do aluno primeiro, limpar o estado da conversa depois*: se a operação
+falhar, o fluxo permanece e o usuário pode tentar de novo.
+
+**Reset.** `reset_service.resetar_tudo` roda apenas na sessão da aplicação — os dados do
+aluno nunca são apagados.
+
 ## 11. Testes
 
 `pytest`, em `backend/tests/`, com **SQLite em memória** e o **provedor fake** (nada de

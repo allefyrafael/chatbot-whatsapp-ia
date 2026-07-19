@@ -38,9 +38,11 @@ def test_admin_ve_conexao_atual_sem_senha(admin_client, monkeypatch):
 
 
 def test_config_mostra_card_do_banco(admin_client, config_empresa):
+    """Configurações traz o card do banco, com status e caminho para editar a conexão."""
     html = admin_client.get("/painel/config").text
     assert "Banco de dados" in html
-    assert "Alterar conexão" in html
+    assert "/painel/config/banco" in html  # link para a tela de conexão
+    assert "pill-banco" in html  # indicador de conectado / sem conexão
 
 
 def test_trocar_para_banco_de_sistema_e_recusado(admin_client):

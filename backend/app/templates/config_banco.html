@@ -1,19 +1,38 @@
 {% extends "base.html" %}
-{% block title %}Banco de dados{% endblock %}
+{% set acao = "/painel/config/banco-dados" if modo_dados else "/painel/config/banco" %}
+{% set url_status = acao + "/status" %}
+{% block title %}{{ "Banco de trabalho" if modo_dados else "Banco de dados" }}{% endblock %}
 {% block content %}
 <div class="page-head">
     <div>
-        <h1>Banco de dados</h1>
-        <p class="subtitulo">Conexão com o seu MySQL no AWS RDS. A conexão é testada antes de ser salva.</p>
+        {% if modo_dados %}
+        <h1>Banco de trabalho (dados do aluno)</h1>
+        <p class="subtitulo">É neste banco que as <strong>rotas de IA</strong> leem e gravam — normalmente
+            o seu MySQL no AWS RDS. Se não configurar, o sistema usa o mesmo banco da aplicação.</p>
+        {% else %}
+        <h1>Banco da aplicação</h1>
+        <p class="subtitulo">Onde o chatbot guarda os dados dele (empresa, admins, rotas, conversas).
+            A conexão é testada antes de ser salva.</p>
+        {% endif %}
     </div>
-    <a href="/painel/config" class="btn btn-ghost btn-sm">← Configurações</a>
+    <div class="head-badges">
+        <span class="pill pill--desconectado" id="pill-banco"><span class="pill-dot"></span> Verificando…</span>
+        <a href="/painel/config" class="btn btn-ghost btn-sm">← Configurações</a>
+    </div>
 </div>
 
 {% if sucesso %}<div class="alerta alerta-sucesso">{{ sucesso }}</div>{% endif %}
 
+{% if modo_dados %}
+<div class="alerta" style="background:#eef2ff; color:#3730a3;">
+    Este banco é <strong>separado</strong> do banco da aplicação: o "Apagar tudo" do sistema
+    nunca toca nas tabelas daqui, e as tabelas internas do chatbot não ficam visíveis para a IA.
+</div>
+{% endif %}
+
 <div class="wpp-grid">
     <section class="card">
-        <form method="post" action="/painel/config/banco" id="form-banco">
+        <form method="post" action="{{ acao }}" id="form-banco">
             <div class="campo-linha">
                 <label style="flex:3">Hostname (Endpoint)
                     <input type="text" name="host" value="{{ dados.host or '' }}"
@@ -91,5 +110,23 @@
         b.disabled = true;
         b.textContent = "Testando conexao...";
     });
+
+    // Status atual da conexao (consultado em segundo plano: a AWS pode demorar).
+    (function () {
+        var pill = document.getElementById("pill-banco");
+        var rotulos = {
+            conectado: ["Conectado", "pill--conectado"],
+            sem_conexao: ["Sem conexão", "pill--aguardando_pareamento"],
+            nao_configurado: ["Não configurado", "pill--desconectado"]
+        };
+        fetch("{{ url_status }}")
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                var info = rotulos[d.status] || rotulos.nao_configurado;
+                pill.className = "pill " + info[1];
+                pill.innerHTML = '<span class="pill-dot"></span> ' + info[0];
+            })
+            .catch(function () { pill.remove(); });
+    })();
 </script>
 {% endblock %}

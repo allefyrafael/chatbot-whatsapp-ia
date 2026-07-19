@@ -13,6 +13,12 @@ estado por número (`SessaoChat`) e implementa a máquina de estados:
 
 Segurança: a senha digitada no chat é validada com `app.security.verificar_senha`, nunca
 é registrada no histórico (ver `deve_mascarar`) e a sessão de admin expira.
+
+**Duas conexões:** `db` é o banco da aplicação (estado da conversa, rotas, usuários) e
+`db_dados` é o banco de trabalho do aluno (onde a ação realmente acontece). Como são
+bancos distintos, não há transação comum entre eles — por isso a ordem é sempre
+**executar no banco do aluno primeiro e só então limpar o estado da conversa**. Se a
+operação falhar, o fluxo continua de pé e o usuário pode tentar de novo.
 """
 
 from __future__ import annotations
@@ -82,7 +88,9 @@ def _salvar_dados(db: Session, sessao: SessaoChat, dados: dict) -> None:
 
 
 # --------------------------------------------------------------------------- iniciar
-def iniciar_rota(db: Session, numero: str, rota: RotaIA, valor: str | None = None) -> str:
+def iniciar_rota(
+    db: Session, db_dados: Session, numero: str, rota: RotaIA, valor: str | None = None
+) -> str:
     """Começa uma rota. Pede autenticação antes, se ela for restrita."""
     sessao = obter_sessao(db, numero)
     sessao.rota_id_pendente = rota.id
@@ -97,13 +105,15 @@ def iniciar_rota(db: Session, numero: str, rota: RotaIA, valor: str | None = Non
             "Qual o seu *e-mail* de administrador?"
         )
 
-    return _prosseguir(db, sessao, rota, valor)
+    return _prosseguir(db, db_dados, sessao, rota, valor)
 
 
-def _prosseguir(db: Session, sessao: SessaoChat, rota: RotaIA, valor: str | None) -> str:
+def _prosseguir(
+    db: Session, db_dados: Session, sessao: SessaoChat, rota: RotaIA, valor: str | None
+) -> str:
     """Executa a rota ou pergunta o que falta."""
     if rota.operacao == "inserir":
-        return _proximo_campo(db, sessao, rota)
+        return _proximo_campo(db, db_dados, sessao, rota)
 
     if not valor:
         sessao.etapa = AGUARDANDO_VALOR
@@ -118,11 +128,14 @@ def _prosseguir(db: Session, sessao: SessaoChat, rota: RotaIA, valor: str | None
         db.commit()
         return f'Confirma excluir "{valor}"? Responda *SIM* para confirmar ou *cancelar*.'
 
-    return _executar_busca(db, sessao, rota, valor)
+    return _executar_busca(db, db_dados, sessao, rota, valor)
 
 
-def _executar_busca(db: Session, sessao: SessaoChat, rota: RotaIA, valor: str) -> str:
-    linhas = rota_service.executar_busca(db, rota, valor)
+def _executar_busca(
+    db: Session, db_dados: Session, sessao: SessaoChat, rota: RotaIA, valor: str
+) -> str:
+    # Busca no banco do aluno primeiro; só limpa o estado se ela funcionou.
+    linhas = rota_service.executar_busca(db_dados, rota, valor)
     limpar_fluxo(db, sessao)
     if not linhas:
         modelo = rota.mensagem_vazio or "Não encontrei {valor}."
@@ -131,9 +144,9 @@ def _executar_busca(db: Session, sessao: SessaoChat, rota: RotaIA, valor: str) -
 
 
 # ----------------------------------------------------------------------- inserção
-def _proximo_campo(db: Session, sessao: SessaoChat, rota: RotaIA) -> str:
+def _proximo_campo(db: Session, db_dados: Session, sessao: SessaoChat, rota: RotaIA) -> str:
     """Pergunta o próximo campo pendente do cadastro, ou executa a inserção."""
-    campos = rota_service.campos_para_inserir(db, rota)
+    campos = rota_service.campos_para_inserir(db_dados, rota)
     dados = _dados(sessao)
 
     for campo in campos:
@@ -147,14 +160,15 @@ def _proximo_campo(db: Session, sessao: SessaoChat, rota: RotaIA) -> str:
         return f'Informe *{campo["rotulo"]}* (opcional — responda "pular" para deixar em branco):'
 
     valores = {c: v for c, v in dados.items() if not c.startswith("__")}
-    rota_service.executar_insercao(db, rota, valores)
+    # Grava no banco do aluno primeiro; se falhar, o fluxo continua para nova tentativa.
+    rota_service.executar_insercao(db_dados, rota, valores)
     limpar_fluxo(db, sessao)
     resumo = ", ".join(f"{c}: {v}" for c, v in valores.items())
     return f"Pronto! Cadastrei com sucesso.\n{resumo}"
 
 
 # ------------------------------------------------------------------------ continuar
-def continuar_fluxo(db: Session, numero: str, texto: str) -> str | None:
+def continuar_fluxo(db: Session, db_dados: Session, numero: str, texto: str) -> str | None:
     """Avança a conversa em andamento. Devolve None se não houver fluxo pendente."""
     sessao = db.get(SessaoChat, numero)
     if sessao is None or not sessao.etapa:
@@ -190,10 +204,12 @@ def continuar_fluxo(db: Session, numero: str, texto: str) -> str | None:
         sessao.etapa = None
         db.commit()
         dados = _dados(sessao)
-        return f"Autenticado, {usuario.nome}. " + _prosseguir(db, sessao, rota, dados.get("__valor__"))
+        return f"Autenticado, {usuario.nome}. " + _prosseguir(
+            db, db_dados, sessao, rota, dados.get("__valor__")
+        )
 
     if etapa == AGUARDANDO_VALOR:
-        return _prosseguir(db, sessao, rota, resposta_limpa)
+        return _prosseguir(db, db_dados, sessao, rota, resposta_limpa)
 
     if etapa == AGUARDANDO_CAMPO:
         dados = _dados(sessao)
@@ -204,14 +220,15 @@ def continuar_fluxo(db: Session, numero: str, texto: str) -> str | None:
             else:
                 dados[coluna] = None
         _salvar_dados(db, sessao, dados)
-        return _proximo_campo(db, sessao, rota)
+        return _proximo_campo(db, db_dados, sessao, rota)
 
     if etapa == AGUARDANDO_CONFIRMACAO:
         if resposta_limpa.lower() not in _CONFIRMAR:
             limpar_fluxo(db, sessao)
             return "Ok, não excluí nada."
         valor = _dados(sessao).get("__valor__", "")
-        removidos = rota_service.executar_exclusao(db, rota, valor)
+        # Exclui no banco do aluno primeiro; se falhar, o fluxo permanece.
+        removidos = rota_service.executar_exclusao(db_dados, rota, valor)
         limpar_fluxo(db, sessao)
         if removidos:
             return f'Pronto, excluí "{valor}".'

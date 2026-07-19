@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.config import settings
-from app.database import Base, get_db
+from app.database import Base, get_db, get_db_dados
 
 # Os testes usam SQLite em memória (fixture `engine`) e nunca o banco real. Definir a
 # DATABASE_URL aqui deixa a suíte independente do .env da máquina e satisfaz o middleware
@@ -65,6 +65,8 @@ def client(db_session, fake_provider):
         yield db_session
 
     app.dependency_overrides[get_db] = _get_db_override
+    # Nos testes, o banco de trabalho é o mesmo da aplicação (modo fallback).
+    app.dependency_overrides[get_db_dados] = _get_db_override
     app.dependency_overrides[provedor_whatsapp] = lambda: fake_provider
     # Sem o context manager de propósito: não dispara o lifespan (que tocaria o MySQL real).
     # As tabelas de teste já são criadas pela fixture `engine` (SQLite em memória).

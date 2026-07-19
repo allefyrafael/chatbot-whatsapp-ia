@@ -105,6 +105,33 @@ Clique em **"Testar conexão e continuar"**:
 
 ---
 
+## 5.1 Entendendo os DOIS bancos
+
+O sistema trabalha com **dois bancos de dados separados** — e entender isso evita muita
+confusão:
+
+| | **Banco da aplicação** | **Banco de trabalho (seu)** |
+|---|---|---|
+| **O que guarda** | dados do próprio chatbot: empresa, administradores, produtos, regras da IA, conversas | **as tabelas que você cria** (ex.: `alunos`, `produtos`, `pedidos`) |
+| **Onde fica** | normalmente o **MySQL local** da sua máquina | normalmente o seu **MySQL no AWS RDS** |
+| **Quem usa** | o painel | as **rotas de IA** — é aqui que o bot busca, cadastra e exclui |
+| **Onde configurar** | tela do primeiro acesso (seção 5) | **Configurações → Banco de trabalho** |
+
+**Por que separar?** Duas razões:
+
+1. **Segurança** — as tabelas internas do chatbot guardam senhas e a chave da IA. Com os
+   bancos separados, uma rota de IA **não consegue nem enxergar** essas tabelas.
+2. **Clareza** — o "Apagar tudo" (Configurações) zera o chatbot, mas **nunca apaga as suas
+   tabelas** do banco de trabalho. Seu exercício fica preservado.
+
+> **Não configurou o banco de trabalho?** Sem problema: o sistema usa o mesmo banco da
+> aplicação e tudo continua funcionando. A separação é opcional e pode ser feita depois.
+
+Para configurar: **Configurações → Banco de trabalho (aluno) → Configurar banco de
+trabalho**, e preencha com os dados do seu RDS (os mesmos campos da seção 5).
+
+---
+
 ## 6. Primeiro acesso (empresa, IA e WhatsApp)
 
 Logo após conectar o banco você já cai em <http://localhost:8000/setup>

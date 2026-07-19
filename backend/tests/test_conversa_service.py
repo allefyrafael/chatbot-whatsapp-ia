@@ -41,33 +41,33 @@ def rota_busca(db_session, tabela_alunos):
 
 def test_busca_pergunta_depois_responde(db_session, rota_busca):
     """Sem valor, o bot faz a pergunta configurada; a resposta seguinte e o filtro."""
-    pergunta = cs.iniciar_rota(db_session, NUMERO, rota_busca)
+    pergunta = cs.iniciar_rota(db_session, db_session, NUMERO, rota_busca)
     assert pergunta == "Qual o nome do aluno?"
 
-    resposta = cs.continuar_fluxo(db_session, NUMERO, "Maria")
+    resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "Maria")
     assert "Maria Silva" in resposta and "ADS" in resposta
 
 
 def test_busca_com_valor_ja_informado_executa_direto(db_session, rota_busca):
-    resposta = cs.iniciar_rota(db_session, NUMERO, rota_busca, valor="Maria")
+    resposta = cs.iniciar_rota(db_session, db_session, NUMERO, rota_busca, valor="Maria")
     assert "Maria Silva" in resposta
 
 
 def test_nao_encontrado_repete_o_termo_buscado(db_session, rota_busca):
-    cs.iniciar_rota(db_session, NUMERO, rota_busca)
-    resposta = cs.continuar_fluxo(db_session, NUMERO, "Fulano")
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota_busca)
+    resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "Fulano")
     assert resposta == "Não encontrei Fulano na base."
 
 
 def test_sem_fluxo_pendente_retorna_none(db_session):
-    assert cs.continuar_fluxo(db_session, NUMERO, "oi") is None
+    assert cs.continuar_fluxo(db_session, db_session, NUMERO, "oi") is None
 
 
 def test_cancelar_encerra_o_fluxo(db_session, rota_busca):
-    cs.iniciar_rota(db_session, NUMERO, rota_busca)
-    resposta = cs.continuar_fluxo(db_session, NUMERO, "cancelar")
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota_busca)
+    resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "cancelar")
     assert "cancelei" in resposta.lower()
-    assert cs.continuar_fluxo(db_session, NUMERO, "Maria") is None
+    assert cs.continuar_fluxo(db_session, db_session, NUMERO, "Maria") is None
 
 
 # ------------------------------------------------------------------ admin no chat
@@ -85,21 +85,21 @@ def rota_restrita(db_session, tabela_alunos):
 
 
 def test_rota_restrita_pede_email_e_senha(db_session, rota_restrita):
-    r1 = cs.iniciar_rota(db_session, NUMERO, rota_restrita)
+    r1 = cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
     assert "e-mail" in r1.lower()
 
-    r2 = cs.continuar_fluxo(db_session, NUMERO, "admin@x.com")
+    r2 = cs.continuar_fluxo(db_session, db_session, NUMERO, "admin@x.com")
     assert "senha" in r2.lower()
 
-    r3 = cs.continuar_fluxo(db_session, NUMERO, "senha12345")
+    r3 = cs.continuar_fluxo(db_session, db_session, NUMERO, "senha12345")
     assert "autenticado" in r3.lower()
     assert "Qual aluno excluir?" in r3
 
 
 def test_senha_errada_cancela_a_acao(db_session, rota_restrita):
-    cs.iniciar_rota(db_session, NUMERO, rota_restrita)
-    cs.continuar_fluxo(db_session, NUMERO, "admin@x.com")
-    resposta = cs.continuar_fluxo(db_session, NUMERO, "senha-errada")
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
+    cs.continuar_fluxo(db_session, db_session, NUMERO, "admin@x.com")
+    resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "senha-errada")
 
     assert "incorretos" in resposta.lower()
     sessao = db_session.get(SessaoChat, NUMERO)
@@ -109,8 +109,8 @@ def test_senha_errada_cancela_a_acao(db_session, rota_restrita):
 
 def test_senha_deve_ser_mascarada_no_historico(db_session, rota_restrita):
     """Enquanto espera a senha, a mensagem nao pode ser gravada em claro."""
-    cs.iniciar_rota(db_session, NUMERO, rota_restrita)
-    cs.continuar_fluxo(db_session, NUMERO, "admin@x.com")
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
+    cs.continuar_fluxo(db_session, db_session, NUMERO, "admin@x.com")
 
     assert cs.deve_mascarar(db_session, NUMERO) is True
 
@@ -127,7 +127,7 @@ def test_admin_ja_autenticado_nao_pede_senha_de_novo(db_session, rota_restrita):
     sessao.admin_autenticado_ate = _daqui(5)
     db_session.commit()
 
-    resposta = cs.iniciar_rota(db_session, NUMERO, rota_restrita)
+    resposta = cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
     assert "Qual aluno excluir?" in resposta
 
 
@@ -137,11 +137,11 @@ def test_exclusao_pede_confirmacao(db_session, rota_restrita):
     sessao.admin_autenticado_ate = _daqui(5)
     db_session.commit()
 
-    cs.iniciar_rota(db_session, NUMERO, rota_restrita)
-    confirmacao = cs.continuar_fluxo(db_session, NUMERO, "Maria Silva")
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
+    confirmacao = cs.continuar_fluxo(db_session, db_session, NUMERO, "Maria Silva")
     assert "confirma" in confirmacao.lower()
 
-    final = cs.continuar_fluxo(db_session, NUMERO, "SIM")
+    final = cs.continuar_fluxo(db_session, db_session, NUMERO, "SIM")
     assert "exclu" in final.lower()
     assert db_session.execute(text("SELECT COUNT(*) FROM alunos")).scalar() == 0
 
@@ -151,9 +151,9 @@ def test_exclusao_negada_nao_remove(db_session, rota_restrita):
     sessao.admin_autenticado_ate = _daqui(5)
     db_session.commit()
 
-    cs.iniciar_rota(db_session, NUMERO, rota_restrita)
-    cs.continuar_fluxo(db_session, NUMERO, "Maria Silva")
-    resposta = cs.continuar_fluxo(db_session, NUMERO, "não")
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
+    cs.continuar_fluxo(db_session, db_session, NUMERO, "Maria Silva")
+    resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "não")
 
     assert "não excluí" in resposta.lower()
     assert db_session.execute(text("SELECT COUNT(*) FROM alunos")).scalar() == 1
@@ -165,13 +165,13 @@ def test_insercao_coleta_campos_e_marca_obrigatorios(db_session, tabela_alunos):
     db_session.add(rota)
     db_session.commit()
 
-    p1 = cs.iniciar_rota(db_session, NUMERO, rota)
+    p1 = cs.iniciar_rota(db_session, db_session, NUMERO, rota)
     assert "nome" in p1.lower() and "obrigat" in p1.lower()
 
-    p2 = cs.continuar_fluxo(db_session, NUMERO, "Ana Lima")
+    p2 = cs.continuar_fluxo(db_session, db_session, NUMERO, "Ana Lima")
     assert "curso" in p2.lower() and "opcional" in p2.lower()
 
-    final = cs.continuar_fluxo(db_session, NUMERO, "Design")
+    final = cs.continuar_fluxo(db_session, db_session, NUMERO, "Design")
     assert "cadastrei" in final.lower()
     total = db_session.execute(text("SELECT COUNT(*) FROM alunos WHERE nome='Ana Lima'")).scalar()
     assert total == 1
@@ -182,9 +182,9 @@ def test_insercao_permite_pular_campo_opcional(db_session, tabela_alunos):
     db_session.add(rota)
     db_session.commit()
 
-    cs.iniciar_rota(db_session, NUMERO, rota)
-    cs.continuar_fluxo(db_session, NUMERO, "Bruno Alves")
-    final = cs.continuar_fluxo(db_session, NUMERO, "pular")
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota)
+    cs.continuar_fluxo(db_session, db_session, NUMERO, "Bruno Alves")
+    final = cs.continuar_fluxo(db_session, db_session, NUMERO, "pular")
 
     assert "cadastrei" in final.lower()
     curso = db_session.execute(text("SELECT curso FROM alunos WHERE nome='Bruno Alves'")).scalar()

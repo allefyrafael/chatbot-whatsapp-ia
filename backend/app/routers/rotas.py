@@ -1,15 +1,18 @@
 """Painel — construtor de rotas de IA (as ações que o chatbot executa no banco).
 
 O aluno monta a rota por um formulário guiado, sem escrever SQL: escolhe a operação, a
-tabela (vinda da introspecção do banco dele), as colunas e o que o bot deve perguntar.
-Exigem administrador autenticado, como as demais telas do painel.
+tabela (vinda da introspecção do **banco de trabalho** dele), as colunas e o que o bot
+deve perguntar. Exigem administrador autenticado, como as demais telas do painel.
+
+Duas conexões: `db` guarda o cadastro da rota (banco da aplicação) e `db_dados` é o banco
+de trabalho do aluno, de onde vêm as tabelas e colunas oferecidas no formulário.
 """
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_db_dados
 from app.deps import get_current_admin
 from app.models import RotaIA, Usuario
 from app.services import rota_service, schema_service
@@ -20,10 +23,11 @@ router = APIRouter(prefix="/painel/rotas", tags=["IA — Rotas"])
 OPERACOES = ("buscar", "inserir", "excluir")
 
 
-def _tabelas(db: Session) -> list[str]:
-    """Tabelas disponíveis; se o banco não responder, devolve lista vazia (tela ainda abre)."""
+def _tabelas(db_dados: Session) -> list[str]:
+    """Tabelas do banco de trabalho; se ele não responder, devolve lista vazia
+    (a tela ainda abre, com um aviso, em vez de estourar erro)."""
     try:
-        return schema_service.listar_tabelas(db)
+        return schema_service.listar_tabelas(db_dados)
     except Exception:  # noqa: BLE001
         return []
 
@@ -43,25 +47,25 @@ def listar(
 @router.get("/nova", response_class=HTMLResponse, summary="Formulário de nova rota")
 def formulario_nova(
     request: Request,
-    db: Session = Depends(get_db),
+    db_dados: Session = Depends(get_db_dados),
     usuario: Usuario = Depends(get_current_admin),
 ):
     return templates.TemplateResponse(
         request,
         "rotas_form.html",
-        {"usuario": usuario, "rota": None, "tabelas": _tabelas(db), "operacoes": OPERACOES},
+        {"usuario": usuario, "rota": None, "tabelas": _tabelas(db_dados), "operacoes": OPERACOES},
     )
 
 
 @router.get("/colunas", summary="Colunas de uma tabela (JSON, para o construtor)")
 def colunas_da_tabela(
     tabela: str,
-    db: Session = Depends(get_db),
+    db_dados: Session = Depends(get_db_dados),
     usuario: Usuario = Depends(get_current_admin),
 ):
     """Usado pelo formulário para carregar as colunas assim que a tabela é escolhida."""
     try:
-        return {"colunas": schema_service.listar_colunas(db, tabela)}
+        return {"colunas": schema_service.listar_colunas(db_dados, tabela)}
     except schema_service.TabelaNaoPermitida:
         return {"colunas": []}
 
@@ -78,17 +82,18 @@ def criar(
     mensagem_vazio: str = Form(""),
     requer_admin: str | None = Form(None),
     db: Session = Depends(get_db),
+    db_dados: Session = Depends(get_db_dados),
     usuario: Usuario = Depends(get_current_admin),
 ):
-    """Valida tabela/colunas contra o banco real e grava a rota."""
+    """Valida tabela/colunas no banco de trabalho e grava a rota no banco da aplicação."""
     if operacao not in OPERACOES:
         raise HTTPException(status_code=400, detail="Operação inválida.")
     try:
-        schema_service.validar_tabela(db, tabela)
+        schema_service.validar_tabela(db_dados, tabela)
         if coluna_filtro:
-            schema_service.validar_colunas(db, tabela, [coluna_filtro])
+            schema_service.validar_colunas(db_dados, tabela, [coluna_filtro])
         if colunas_retorno:
-            schema_service.validar_colunas(db, tabela, colunas_retorno)
+            schema_service.validar_colunas(db_dados, tabela, colunas_retorno)
     except (schema_service.TabelaNaoPermitida, schema_service.ColunaNaoPermitida) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
