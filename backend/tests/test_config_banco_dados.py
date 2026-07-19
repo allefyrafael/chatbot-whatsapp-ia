@@ -24,7 +24,7 @@ def test_configuracoes_mostra_so_o_banco_do_projeto(admin_client, config_empresa
 
 def test_tela_do_banco_de_trabalho_abre(admin_client):
     html = admin_client.get("/painel/config/banco-dados").text
-    assert "Banco do meu projeto (AWS)" in html
+    assert "Banco de dados do projeto" in html
     assert 'action="/painel/config/banco-dados"' in html
 
 

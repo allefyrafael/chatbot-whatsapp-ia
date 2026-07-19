@@ -15,13 +15,11 @@ from sqlalchemy import inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-# Nunca expostas às rotas de IA.
-#
-# Com o banco de trabalho separado (DADOS_DATABASE_URL) estas tabelas nem existem lá;
-# a lista continua como defesa em profundidade para o modo fallback, em que o banco de
-# trabalho é o mesmo da aplicação. Ao criar uma tabela interna nova, acrescente-a aqui.
-TABELAS_BLOQUEADAS = {
-    "usuarios",           # hashes de senha
+# Nomes exclusivos desta aplicação: nunca são tabelas legítimas de um aluno, e guardam
+# segredos ou o estado interno do bot. Ficam bloqueados em qualquer banco — inclusive no
+# do aluno, porque uma cópia pode ter ido parar lá (foi o que aconteceu quando a
+# configuração apontou para a AWS por engano). Ao criar uma tabela interna, inclua-a aqui.
+TABELAS_INTERNAS = {
     "configuracoes",      # chave do Groq, código de pareamento
     "sessoes_chat",       # estado de autenticação do chat
     "rotas_ia",           # a própria configuração das rotas
@@ -31,6 +29,13 @@ TABELAS_BLOQUEADAS = {
     "tabelas_dinamicas",  # metadados internos do catálogo
     "colunas_dinamicas",
 }
+
+# Nome genérico demais para bloquear sempre: quase todo projeto de aluno tem o seu
+# `usuarios` (um sistema de denúncias, por exemplo). No banco da aplicação ele guarda
+# hashes de senha, então só é bloqueado quando o banco em uso É o da aplicação.
+TABELAS_INTERNAS_SO_NA_APLICACAO = {"usuarios"}
+
+TABELAS_BLOQUEADAS = TABELAS_INTERNAS | TABELAS_INTERNAS_SO_NA_APLICACAO
 
 
 def _engine_de(origem: Engine | Session) -> Engine:
@@ -50,10 +55,26 @@ class ColunaNaoPermitida(Exception):
     """Coluna inexistente na tabela informada."""
 
 
+def _bloqueadas_para(engine: Engine) -> set[str]:
+    """Quais nomes esconder neste engine.
+
+    Os nomes internos desta aplicação ficam sempre fora. `usuarios` é o caso especial:
+    bloquear em qualquer banco cegaria o aluno da própria tabela de usuários, então ele
+    só some quando o banco em uso é o da aplicação — onde de fato guarda senhas.
+    """
+    from app.database import get_engine
+
+    if str(engine.url) == str(get_engine().url):
+        return TABELAS_BLOQUEADAS
+    return TABELAS_INTERNAS
+
+
 def listar_tabelas(origem: Engine | Session) -> list[str]:
-    """Tabelas do banco de trabalho disponíveis para montar rotas (sem as internas)."""
-    inspetor = inspect(_engine_de(origem))
-    return sorted(t for t in inspetor.get_table_names() if t not in TABELAS_BLOQUEADAS)
+    """Tabelas do banco do projeto disponíveis para montar rotas."""
+    engine = _engine_de(origem)
+    inspetor = inspect(engine)
+    bloqueadas = _bloqueadas_para(engine)
+    return sorted(t for t in inspetor.get_table_names() if t not in bloqueadas)
 
 
 def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:

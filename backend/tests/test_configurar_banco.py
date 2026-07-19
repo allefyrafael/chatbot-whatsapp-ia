@@ -46,18 +46,29 @@ def test_pagina_do_assistente_abre_e_tem_os_campos(client, monkeypatch):
         assert campo in resp.text
 
 
-def test_dados_invalidos_mostram_popup_de_erro(client):
+DADOS_INVALIDOS = {
+    "host": "host-que-nao-existe.invalid",
+    "porta": "3306",
+    "usuario": "admin",
+    "senha": "x",
+    "banco": "chatbot",
+    "ssl_ca": "",
+}
+
+
+def test_erro_volta_em_json_para_o_formulario(client):
+    """O formulário envia por fetch para mostrar progresso sem recarregar a página."""
     resp = client.post(
-        "/configurar-banco",
-        data={
-            "host": "host-que-nao-existe.invalid",
-            "porta": "3306",
-            "usuario": "admin",
-            "senha": "x",
-            "banco": "chatbot",
-            "ssl_ca": "",
-        },
+        "/configurar-banco", data=DADOS_INVALIDOS, headers={"X-Requested-With": "fetch"}
     )
     assert resp.status_code == 400
-    assert "modal-overlay" in resp.text  # o popup estilizado aparece
-    assert "Não foi possível conectar" in resp.text
+    corpo = resp.json()
+    assert corpo["ok"] is False
+    assert corpo["erro"]  # mensagem traduzida, para a janela flutuante
+
+
+def test_sem_javascript_o_erro_ainda_chega_em_html(client):
+    """Envio normal do navegador continua funcionando (sem JS, sem fetch)."""
+    resp = client.post("/configurar-banco", data=DADOS_INVALIDOS)
+    assert resp.status_code == 400
+    assert "Não foi possível conectar" in resp.text or "endpoint" in resp.text.lower()

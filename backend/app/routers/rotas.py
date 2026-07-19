@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db, get_db_dados
+from app.database import banco_dados_configurado, get_db, get_db_dados
 from app.deps import get_current_admin
 from app.models import RotaIA, Usuario
 from app.services import rota_service, schema_service
@@ -24,11 +24,18 @@ OPERACOES = ("buscar", "inserir", "excluir")
 
 
 def _tabelas(db_dados: Session) -> list[str]:
-    """Tabelas do banco de trabalho; se ele não responder, devolve lista vazia
-    (a tela ainda abre, com um aviso, em vez de estourar erro)."""
+    """Tabelas do banco do projeto (AWS); lista vazia se ele não responder.
+
+    Nunca lista o banco de configuração: quando o aluno ainda não conectou o dele,
+    `get_db_dados` devolve a sessão da aplicação como fallback, e sem esta checagem o
+    construtor ofereceria as tabelas de exemplo do chatbot (`clientes`, `pedidos`…)
+    como se fossem do projeto dele.
+    """
+    if not banco_dados_configurado():
+        return []
     try:
         return schema_service.listar_tabelas(db_dados)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - a tela abre com aviso em vez de estourar
         return []
 
 
@@ -53,7 +60,15 @@ def formulario_nova(
     return templates.TemplateResponse(
         request,
         "rotas_form.html",
-        {"usuario": usuario, "rota": None, "tabelas": _tabelas(db_dados), "operacoes": OPERACOES},
+        {
+            "usuario": usuario,
+            "rota": None,
+            "tabelas": _tabelas(db_dados),
+            "operacoes": OPERACOES,
+            # Sem o banco do projeto conectado não há o que oferecer: a tela explica
+            # isso e manda conectar, em vez de mostrar um seletor vazio sem motivo.
+            "banco_conectado": banco_dados_configurado(),
+        },
     )
 
 
@@ -64,6 +79,8 @@ def colunas_da_tabela(
     usuario: Usuario = Depends(get_current_admin),
 ):
     """Usado pelo formulário para carregar as colunas assim que a tabela é escolhida."""
+    if not banco_dados_configurado():
+        return {"colunas": []}  # mesmo motivo de `_tabelas`: não expor o banco local
     try:
         return {"colunas": schema_service.listar_colunas(db_dados, tabela)}
     except schema_service.TabelaNaoPermitida:

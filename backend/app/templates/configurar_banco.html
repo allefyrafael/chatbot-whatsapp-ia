@@ -88,26 +88,108 @@
     </div>
 </div>
 
-<!-- Popup de erro -->
-{% if erro %}
-<div class="modal-overlay" id="modal-erro">
-    <div class="modal">
-        <div class="modal-icone">!</div>
-        <h2>Não foi possível conectar</h2>
-        <p class="modal-texto">{{ erro|safe }}</p>
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('modal-erro').remove()">
-            Entendi, vou corrigir
-        </button>
+<!-- Uma unica janela flutuante, reaproveitada nos tres estados: conectando / erro / sucesso.
+     `hidden` no HTML garante que ela nao aparece se o JavaScript falhar. -->
+<div class="modal-fundo" id="modal" hidden>
+    <div class="modal-caixa" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+        <div id="modal-corpo"></div>
     </div>
 </div>
+
+<!-- Sem JavaScript o servidor responde HTML; este bloco mostra o erro do mesmo jeito. -->
+{% if erro %}
+<noscript>
+    <div class="alerta alerta-erro" style="margin-top:16px">{{ erro|safe }}</div>
+</noscript>
 {% endif %}
 
 <script>
-    // Feedback de "testando..." para o aluno saber que algo esta acontecendo.
-    document.getElementById("form-banco").addEventListener("submit", function () {
-        var b = document.getElementById("btn-testar");
-        b.disabled = true;
-        b.textContent = "Testando conexao...";
-    });
+    (function () {
+        var form = document.getElementById("form-banco");
+        var botao = document.getElementById("btn-testar");
+        var modal = document.getElementById("modal");
+        var corpo = document.getElementById("modal-corpo");
+
+        // O servidor ja tinha respondido com erro (envio sem JavaScript): mostra na janela.
+        var erroDoServidor = {{ (erro or "") | tojson }};
+
+        function abrir(html) {
+            corpo.innerHTML = html;
+            modal.hidden = false;
+        }
+        function fechar() {
+            modal.hidden = true;
+            botao.disabled = false;
+            botao.textContent = "Testar conexão e continuar";
+        }
+
+        function mostrarConectando(host) {
+            abrir(
+                '<div class="conectando">' +
+                    '<div class="plug-cena">' +
+                        '<span class="plug">🔌</span>' +
+                        '<span class="faisca">⚡</span>' +
+                        '<span>🗄️</span>' +
+                    '</div>' +
+                    '<h3 id="modal-titulo">Conectando ao seu banco…</h3>' +
+                    '<p class="modal-msg" style="text-align:center">' +
+                        'Estamos falando com <b>' + host + '</b> na AWS.<br>' +
+                        'Isso costuma levar alguns segundos.' +
+                    '</p>' +
+                '</div>'
+            );
+        }
+
+        function mostrarSucesso(dados) {
+            abrir(
+                '<div class="modal-icone">✅</div>' +
+                '<h3 id="modal-titulo">Conectado com sucesso!</h3>' +
+                '<p class="modal-msg" style="text-align:center">' +
+                    'O chatbot já está ligado ao banco <b>' + dados.banco + '</b>.<br>' +
+                    'Agora vamos cadastrar a sua empresa.' +
+                '</p>' +
+                '<button type="button" class="btn btn-primary btn-lg" id="modal-ok">OK, continuar</button>'
+            );
+            document.getElementById("modal-ok").addEventListener("click", function () {
+                window.location.href = dados.destino || "/";
+            });
+        }
+
+        function mostrarErro(mensagem) {
+            abrir(
+                '<div class="modal-icone">⚠️</div>' +
+                '<h3 id="modal-titulo">Não foi possível conectar</h3>' +
+                '<p class="modal-msg">' + mensagem + '</p>' +
+                '<button type="button" class="btn btn-primary" id="modal-fechar">Entendi, vou corrigir</button>'
+            );
+            document.getElementById("modal-fechar").addEventListener("click", fechar);
+        }
+
+        if (erroDoServidor) mostrarErro(erroDoServidor);
+
+        form.addEventListener("submit", function (evento) {
+            evento.preventDefault();
+            botao.disabled = true;
+            botao.textContent = "Testando conexão…";
+            mostrarConectando(form.host.value.trim() || "seu servidor");
+
+            fetch(form.action, {
+                method: "POST",
+                headers: { "X-Requested-With": "fetch" },
+                body: new FormData(form)
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.ok) mostrarSucesso(d);
+                    else mostrarErro(d.erro || "Erro desconhecido.");
+                })
+                .catch(function () {
+                    mostrarErro(
+                        "Não consegui falar com o servidor do painel. Verifique se a janela " +
+                        "do <code>run.bat</code> ainda está aberta e tente de novo."
+                    );
+                });
+        });
+    })();
 </script>
 {% endblock %}

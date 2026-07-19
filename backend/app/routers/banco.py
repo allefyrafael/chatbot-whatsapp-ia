@@ -12,7 +12,7 @@ Nada de tabelas é criado aqui: o schema pertence ao aluno.
 """
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.database import banco_dados_configurado
 from app.services import banco_config_service
@@ -41,8 +41,14 @@ def salvar_banco(
     banco: str = Form(...),
     ssl_ca: str = Form(""),
 ):
-    """Testa a conexão informada e só salva se ela funcionar."""
+    """Testa a conexão informada e só salva se ela funcionar.
+
+    Responde em JSON quando chamado pelo próprio formulário (fetch), para que a tela
+    possa mostrar o progresso e o resultado sem recarregar. Sem JavaScript, o navegador
+    envia o form normalmente e recebe HTML — o fluxo continua funcionando.
+    """
     dados = {"host": host, "porta": porta, "usuario": usuario, "banco": banco, "ssl_ca": ssl_ca}
+    via_fetch = request.headers.get("x-requested-with") == "fetch"
 
     # Recusa schemas internos do MySQL antes de tentar (erro classico: apontar p/ 'mysql').
     erro = banco_config_service.validar_nome_banco(banco)
@@ -55,6 +61,8 @@ def salvar_banco(
     if erro:
         # Mostra o que realmente existe no servidor, em vez de deixar o aluno adivinhar.
         erro += banco_config_service.sugerir_bancos(host, porta, usuario, senha, ssl_ca.strip())
+        if via_fetch:
+            return JSONResponse({"ok": False, "erro": erro}, status_code=400)
         return templates.TemplateResponse(
             request,
             "configurar_banco.html",
@@ -63,4 +71,6 @@ def salvar_banco(
         )
 
     banco_config_service.salvar_configuracao_dados(url, ssl_ca.strip())
+    if via_fetch:
+        return JSONResponse({"ok": True, "banco": banco.strip(), "host": host.strip(), "destino": "/"})
     return RedirectResponse("/", status_code=303)

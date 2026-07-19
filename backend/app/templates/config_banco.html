@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% set acao = "/painel/config/banco-dados" if modo_dados else "/painel/config/banco" %}
 {% set url_status = acao + "/status" %}
-{% block title %}{{ "Banco de trabalho" if modo_dados else "Banco de dados" }}{% endblock %}
+{% block title %}{{ "Banco do projeto" if modo_dados else "Banco de configuracao" }}{% endblock %}
 {% block content %}
 <div class="page-head">
     <div>
         {% if modo_dados %}
-        <h1>Banco do meu projeto (AWS)</h1>
+        <h1>Banco de dados do projeto</h1>
         <p class="subtitulo">O banco MySQL que <strong>você criou no AWS RDS</strong>. É nele que as
             <strong>rotas de IA</strong> buscam e cadastram os dados do seu projeto.</p>
         {% else %}

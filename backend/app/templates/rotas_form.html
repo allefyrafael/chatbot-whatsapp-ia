@@ -4,125 +4,216 @@
 <div class="page-head">
     <div>
         <h1>Nova rota de IA</h1>
-        <p class="subtitulo">Monte uma ação em etapas. Você não precisa escrever SQL.</p>
+        <p class="subtitulo">Monte uma ação do bot em 3 blocos. Você não precisa escrever SQL.</p>
     </div>
     <a href="/painel/rotas" class="btn btn-ghost btn-sm">← Voltar</a>
 </div>
 
-<div class="item-grid">
-    <section class="card">
+<div class="rota-grid">
+    <section class="card rota-form-card">
         <form method="post" action="/painel/rotas/nova" id="form-rota">
-            <div class="step">
-                <span class="step-num">1</span>
-                <div style="flex:1">
-                    <label>Nome da rota
-                        <input type="text" name="nome" placeholder="Ex.: Buscar aluno" required>
+
+            <div class="bloco">
+                <div class="bloco-titulo">
+                    <span class="bloco-num">1</span>
+                    <h4>O que é esta rota</h4>
+                    <span class="ajuda">— é o que a IA lê para decidir quando usá-la</span>
+                </div>
+                <div class="campo-duplo">
+                    <label>Nome
+                        <input type="text" name="nome" id="f-nome" required
+                               placeholder="Ex.: Buscar denúncia">
                     </label>
-                    <label style="margin-top:10px">Quando a IA deve usar esta rota?
-                        <textarea name="descricao" rows="2" required
-                            placeholder="Ex.: quando o cliente quiser consultar um aluno pelo nome"></textarea>
-                        <span class="ajuda">Escreva naturalmente — é isso que a IA lê para decidir.</span>
+                    <label>O que ela faz
+                        <select name="operacao" id="operacao" required>
+                            <option value="buscar">🔍 Buscar registros</option>
+                            <option value="inserir">➕ Cadastrar um registro</option>
+                            <option value="excluir">🗑️ Excluir um registro</option>
+                        </select>
                     </label>
                 </div>
-            </div>
-
-            <div class="step">
-                <span class="step-num">2</span>
-                <label>O que ela faz?
-                    <select name="operacao" id="operacao" required>
-                        <option value="buscar">Buscar registros</option>
-                        <option value="inserir">Cadastrar um registro</option>
-                        <option value="excluir">Excluir um registro</option>
-                    </select>
+                <label style="margin-top:10px">Quando a IA deve usar?
+                    <textarea name="descricao" rows="2" required
+                        placeholder="Ex.: quando a pessoa quiser consultar uma denúncia pelo protocolo"></textarea>
                 </label>
             </div>
 
-            <div class="step">
-                <span class="step-num">3</span>
-                <div style="flex:1">
-                    <label>Em qual tabela?
+            <div class="bloco">
+                <div class="bloco-titulo">
+                    <span class="bloco-num">2</span>
+                    <h4>Onde no seu banco</h4>
+                    <span class="ajuda">— tabelas do seu banco na AWS</span>
+                </div>
+
+                {% if not banco_conectado %}
+                <div class="aviso-conectar">
+                    <span style="font-size:18px; line-height:1">🔌</span>
+                    <div>
+                        <strong>Seu banco de dados ainda não está conectado.</strong><br>
+                        As tabelas que aparecem aqui vêm do banco que você criou no AWS RDS.
+                        <a href="/painel/config/banco-dados">Conectar agora →</a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="campo-duplo">
+                    <label>Tabela
                         <select name="tabela" id="tabela" required>
                             <option value="">Selecione...</option>
                             {% for t in tabelas %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
                         </select>
                         {% if not tabelas %}
-                        <span class="ajuda">Nenhuma tabela encontrada. Crie tabelas no seu banco para usá-las aqui.</span>
+                        <span class="ajuda">Nenhuma tabela encontrada no seu banco.</span>
                         {% endif %}
                     </label>
-
-                    <div id="area-filtro" style="margin-top:10px">
-                        <label>Filtrar por qual coluna?
-                            <select name="coluna_filtro" id="coluna_filtro"></select>
-                            <span class="ajuda">É a coluna que o bot usa para procurar (ex.: nome).</span>
-                        </label>
-                    </div>
-
-                    <div id="area-retorno" style="margin-top:10px">
-                        <span class="ajuda">Quais colunas mostrar na resposta?</span>
-                        <div id="colunas_retorno" class="colunas-check"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="step">
-                <span class="step-num">4</span>
-                <div style="flex:1">
-                    <label id="campo-pergunta">O que o bot pergunta?
-                        <input type="text" name="pergunta" placeholder="Ex.: Qual o nome do aluno?">
-                    </label>
-                    <label id="campo-vazio" style="margin-top:10px">Se não encontrar nada, responder:
-                        <input type="text" name="mensagem_vazio" placeholder="Ex.: Não encontrei {valor} na base.">
-                        <span class="ajuda">Use <code>{valor}</code> para repetir o que foi pesquisado.</span>
+                    <label id="area-filtro">Buscar pela coluna
+                        <select name="coluna_filtro" id="coluna_filtro"></select>
                     </label>
                 </div>
+
+                <div id="area-retorno" style="margin-top:10px">
+                    <span class="ajuda">Quais colunas mostrar na resposta?</span>
+                    <div id="colunas_retorno" class="colunas-check">
+                        <span class="ajuda">Escolha uma tabela primeiro.</span>
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
-            <div class="step">
-                <span class="step-num">5</span>
+            <div class="bloco">
+                <div class="bloco-titulo">
+                    <span class="bloco-num">3</span>
+                    <h4>Como o bot conversa</h4>
+                    <span class="ajuda">— veja o resultado ao lado enquanto digita</span>
+                </div>
+                <div class="campo-duplo">
+                    <label id="campo-pergunta">O que o bot pergunta
+                        <input type="text" name="pergunta" id="f-pergunta"
+                               placeholder="Ex.: Qual o número do protocolo?">
+                    </label>
+                    <label id="campo-vazio">Se não encontrar nada
+                        <input type="text" name="mensagem_vazio" id="f-vazio"
+                               placeholder="Ex.: Não encontrei {valor} na base.">
+                    </label>
+                </div>
+                <span class="ajuda">Use <code>{valor}</code> para repetir o que a pessoa pesquisou.</span>
+            </div>
+
+            <div class="rota-acoes">
                 <label class="checkbox-inline">
-                    <input type="checkbox" name="requer_admin" value="1">
-                    Exigir administrador (o bot pede e-mail e senha antes de executar)
+                    <input type="checkbox" name="requer_admin" id="f-admin" value="1">
+                    Exigir administrador (o bot pede e-mail e senha antes)
                 </label>
-            </div>
-
-            <div style="display:flex; gap:8px; margin-top:4px;">
-                <button type="submit" class="btn btn-primary">Criar rota</button>
                 <a href="/painel/rotas" class="btn btn-ghost">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Criar rota</button>
             </div>
         </form>
     </section>
 
     <aside class="item-preview-wrap">
-        <span class="preview-label">Como vai funcionar no WhatsApp</span>
-        <div class="preview-card" style="flex-direction:column; gap:8px;">
-            <div class="chat-bolha chat-cliente" id="prev-cliente">Cliente: "quero buscar um aluno"</div>
-            <div class="chat-bolha chat-bot" id="prev-bot">Bot: "Qual o nome do aluno?"</div>
-            <div class="chat-bolha chat-cliente">Cliente: "Maria"</div>
-            <div class="chat-bolha chat-bot" id="prev-resultado">Bot: mostra o que encontrou</div>
-        </div>
-        <p class="dica">O cliente não precisa usar palavras exatas — a IA entende pela descrição da etapa 1.</p>
+        <span class="preview-label">Prévia da conversa no WhatsApp</span>
+        <div class="chat-fone" id="chat-fone"></div>
+        <p class="dica">A pessoa não precisa usar palavras exatas — a IA entende pela
+            descrição que você escreveu no bloco 1.</p>
     </aside>
 </div>
 
 <script>
     (function () {
         var operacao = document.getElementById("operacao");
-        var tabela = document.getElementById("tabela");
+        var tabela = document.getElementById("tabela");           // ausente se o banco nao esta conectado
         var colunaFiltro = document.getElementById("coluna_filtro");
         var colunasRetorno = document.getElementById("colunas_retorno");
         var areaFiltro = document.getElementById("area-filtro");
         var areaRetorno = document.getElementById("area-retorno");
         var campoPergunta = document.getElementById("campo-pergunta");
         var campoVazio = document.getElementById("campo-vazio");
-        var prevBot = document.getElementById("prev-bot");
-        var prevResultado = document.getElementById("prev-resultado");
+        var fone = document.getElementById("chat-fone");
+
+        var fNome = document.getElementById("f-nome");
+        var fPergunta = document.getElementById("f-pergunta");
+        var fVazio = document.getElementById("f-vazio");
+        var fAdmin = document.getElementById("f-admin");
+
+        var DIGITANDO = '<span class="chat-digitando"><i></i><i></i><i></i></span>';
+
+        function bolha(quem, html) {
+            var d = document.createElement("div");
+            d.className = "chat-bolha chat-" + quem;
+            d.innerHTML = html;
+            fone.appendChild(d);
+        }
+
+        function escapar(t) {
+            var d = document.createElement("div");
+            d.textContent = t;
+            return d.innerHTML;
+        }
+
+        /* Remonta a conversa inteira a cada alteracao: e barato (poucas bolhas) e evita
+           ter de reconciliar estados intermediarios. */
+        function desenharConversa() {
+            fone.innerHTML = "";
+            var op = operacao.value;
+            var nome = (fNome.value || "").trim();
+            var pergunta = (fPergunta.value || "").trim();
+            var vazio = (fVazio.value || "").trim();
+            var alvo = (tabela && tabela.value) ? tabela.value : "registro";
+
+            var pedido = {
+                buscar: "quero consultar " + (nome ? "— " + nome.toLowerCase() : "um " + alvo),
+                inserir: "quero cadastrar " + (nome ? "— " + nome.toLowerCase() : "um " + alvo),
+                excluir: "quero excluir um " + alvo
+            }[op];
+            bolha("cliente", escapar(pedido));
+
+            if (fAdmin.checked) {
+                bolha("bot", "Antes preciso confirmar quem é você.<br>Qual seu e-mail de administrador?");
+                bolha("cliente", "admin@empresa.com");
+                bolha("bot", "E a senha?");
+                bolha("cliente", "••••••••");
+            }
+
+            if (op === "inserir") {
+                bolha("bot", "Certo! Vou pedir os dados um a um.<br>" +
+                             "Campos marcados como obrigatórios não podem ficar em branco.");
+                bolha("cliente", "…");
+                bolha("bot", "Pronto! Cadastrei com sucesso. ✅");
+                fone.scrollTop = fone.scrollHeight;
+                return;
+            }
+
+            bolha("bot", pergunta ? escapar(pergunta) : DIGITANDO);
+            bolha("cliente", "Maria");
+
+            if (op === "excluir") {
+                bolha("bot", "Encontrei 1 registro. Confirma a exclusão? (sim/não)");
+                bolha("cliente", "sim");
+                bolha("bot", "Excluído. ✅");
+            } else {
+                var colunas = [].slice.call(
+                    document.querySelectorAll('input[name="colunas_retorno"]:checked')
+                ).map(function (c) { return c.value; });
+                if (colunas.length) {
+                    bolha("bot", "Encontrei:<br>" + colunas.map(function (c) {
+                        return "<b>" + escapar(c) + "</b>: …";
+                    }).join("<br>"));
+                } else {
+                    bolha("bot", "mostra o que encontrou");
+                }
+                if (vazio) {
+                    bolha("cliente", "e se não existir?");
+                    bolha("bot", escapar(vazio.replace(/\{valor\}/g, "Maria")));
+                }
+            }
+            fone.scrollTop = fone.scrollHeight;
+        }
 
         function carregarColunas() {
             colunaFiltro.innerHTML = "";
             colunasRetorno.innerHTML = "";
             if (!tabela.value) return;
-            // O banco pode estar na AWS: a leitura das colunas leva alguns segundos.
-            colunasRetorno.innerHTML = '<span class="ajuda">Lendo as colunas do banco…</span>';
+            // O banco esta na AWS: a leitura das colunas leva alguns segundos.
+            colunasRetorno.innerHTML = '<span class="ajuda">Lendo as colunas do seu banco…</span>';
             colunaFiltro.innerHTML = '<option>carregando…</option>';
             colunaFiltro.disabled = true;
             fetch("/painel/rotas/colunas?tabela=" + encodeURIComponent(tabela.value))
@@ -133,47 +224,48 @@
                     colunaFiltro.disabled = false;
                     if (!d.colunas || !d.colunas.length) {
                         colunasRetorno.innerHTML = '<span class="ajuda">Não consegui ler as colunas dessa tabela.</span>';
+                        desenharConversa();
                         return;
                     }
-                    (d.colunas || []).forEach(function (c) {
+                    d.colunas.forEach(function (c) {
                         var op = document.createElement("option");
                         op.value = c.nome; op.textContent = c.nome;
                         colunaFiltro.appendChild(op);
 
                         var lb = document.createElement("label");
                         lb.className = "checkbox-inline";
-                        lb.innerHTML = '<input type="checkbox" name="colunas_retorno" value="' + c.nome + '" checked> ' +
-                            c.nome + (c.obrigatoria ? ' <span class="badge">obrigatória</span>' : '');
+                        lb.innerHTML = '<input type="checkbox" name="colunas_retorno" value="' +
+                            escapar(c.nome) + '" checked> ' + escapar(c.nome) +
+                            (c.obrigatoria ? ' <span class="badge">obrigatória</span>' : '');
                         colunasRetorno.appendChild(lb);
                     });
+                    desenharConversa();
                 })
                 .catch(function () {
                     colunaFiltro.disabled = false;
-                    colunasRetorno.innerHTML = '<span class="ajuda">Falha ao ler o banco. Tente selecionar a tabela de novo.</span>';
+                    colunasRetorno.innerHTML = '<span class="ajuda">Falha ao ler o banco. Selecione a tabela de novo.</span>';
                 });
         }
 
         function atualizarEtapas() {
             var op = operacao.value;
-            areaFiltro.style.display = (op === "inserir") ? "none" : "";
-            areaRetorno.style.display = (op === "buscar") ? "" : "none";
+            if (areaFiltro) areaFiltro.style.display = (op === "inserir") ? "none" : "";
+            if (areaRetorno) areaRetorno.style.display = (op === "buscar") ? "" : "none";
             campoPergunta.style.display = (op === "inserir") ? "none" : "";
             campoVazio.style.display = (op === "buscar") ? "" : "none";
-
-            if (op === "inserir") {
-                prevBot.textContent = 'Bot: pergunta cada campo, avisando o que é obrigatório';
-                prevResultado.textContent = 'Bot: "Pronto! Cadastrei com sucesso."';
-            } else if (op === "excluir") {
-                prevBot.textContent = 'Bot: "Qual registro excluir?"';
-                prevResultado.textContent = 'Bot: pede confirmação antes de excluir';
-            } else {
-                prevBot.textContent = 'Bot: "Qual o nome do aluno?"';
-                prevResultado.textContent = 'Bot: mostra o que encontrou';
-            }
+            desenharConversa();
         }
 
-        tabela.addEventListener("change", carregarColunas);
+        if (tabela) {
+            tabela.addEventListener("change", carregarColunas);
+            colunasRetorno.addEventListener("change", desenharConversa);
+        }
         operacao.addEventListener("change", atualizarEtapas);
+        [fNome, fPergunta, fVazio].forEach(function (campo) {
+            campo.addEventListener("input", desenharConversa);
+        });
+        fAdmin.addEventListener("change", desenharConversa);
+
         atualizarEtapas();
     })();
 </script>
