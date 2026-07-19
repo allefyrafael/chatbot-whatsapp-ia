@@ -88,9 +88,19 @@ _engine_dados: Engine | None = None
 _SessionLocalDados: sessionmaker | None = None
 
 
+def url_dados() -> str:
+    """Conexão do banco do projeto. Acessador único, para todas as telas concordarem.
+
+    Antes cada tela lia `settings.dados_database_url` por conta própria; centralizar aqui
+    garante que "conectado" em Configurações e "conectado" no construtor de rotas sejam
+    literalmente a mesma pergunta.
+    """
+    return (settings.dados_database_url or "").strip()
+
+
 def banco_dados_configurado() -> bool:
-    """Existe um banco de trabalho próprio, separado do banco da aplicação?"""
-    return bool((settings.dados_database_url or "").strip())
+    """Existe um banco do projeto configurado, separado do banco da aplicação?"""
+    return bool(url_dados())
 
 
 def get_engine_dados() -> Engine:
@@ -105,7 +115,7 @@ def get_engine_dados() -> Engine:
     if _engine_dados is None:
         connect_args = {"ssl": {"ca": settings.dados_db_ssl_ca}} if settings.dados_db_ssl_ca else {}
         _engine_dados = create_engine(
-            settings.dados_database_url,
+            url_dados(),
             pool_pre_ping=True,
             connect_args=connect_args,
         )

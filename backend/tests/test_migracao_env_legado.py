@@ -47,9 +47,10 @@ def test_env_ja_migrado_nao_e_alterado(env_temporario):
     """Idempotência: rodar de novo (todo startup) não pode mexer em nada."""
     settings.database_url = URL_CONFIG_PADRAO
     settings.dados_database_url = URL_AWS
+    env_temporario.write_text("DATABASE_URL=nao-toque\n", encoding="utf-8")
 
     assert svc.migrar_env_legado() is None
-    assert not env_temporario.exists()  # nem chegou a escrever
+    assert env_temporario.read_text(encoding="utf-8") == "DATABASE_URL=nao-toque\n"
 
 
 def test_nao_sobrescreve_banco_do_projeto_ja_configurado(env_temporario):

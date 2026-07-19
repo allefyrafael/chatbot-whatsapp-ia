@@ -1,8 +1,24 @@
 """Testes do painel de rotas de IA (construtor guiado)."""
 
+import pytest
 from sqlalchemy import text
 
+from app.config import settings
 from app.models import RotaIA
+
+
+@pytest.fixture
+def banco_do_projeto_conectado():
+    """Finge que o aluno conectou o banco dele.
+
+    O construtor se recusa a listar tabelas sem isso — senão ofereceria as tabelas do
+    banco de configuração como se fossem do projeto. Nos testes, `get_db_dados` já está
+    apontado para a sessão de teste; aqui só ligamos a flag que a tela consulta.
+    """
+    original = settings.dados_database_url
+    settings.dados_database_url = "mysql+pymysql://u:p@rds.exemplo:3306/projeto"
+    yield
+    settings.dados_database_url = original
 
 
 def test_pagina_exige_admin(client):
@@ -15,7 +31,7 @@ def test_admin_ve_lista(admin_client):
     assert admin_client.get("/painel/rotas").status_code == 200
 
 
-def test_formulario_lista_tabelas_do_banco(admin_client, db_session):
+def test_formulario_lista_tabelas_do_banco(admin_client, db_session, banco_do_projeto_conectado):
     db_session.execute(text("CREATE TABLE alunos (id INTEGER PRIMARY KEY, nome VARCHAR(100))"))
     db_session.commit()
 
@@ -24,7 +40,7 @@ def test_formulario_lista_tabelas_do_banco(admin_client, db_session):
     assert "usuarios" not in html  # tabela sensivel nunca aparece
 
 
-def test_endpoint_de_colunas(admin_client, db_session):
+def test_endpoint_de_colunas(admin_client, db_session, banco_do_projeto_conectado):
     db_session.execute(
         text("CREATE TABLE alunos (id INTEGER PRIMARY KEY, nome VARCHAR(100) NOT NULL, curso VARCHAR(50))")
     )

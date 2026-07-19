@@ -6,12 +6,12 @@ perigo' com o reset total, que devolve o sistema ao primeiro acesso.
 """
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.bootstrap import criar_database_se_nao_existe, garantir_colunas
 from app.config import settings
-from app.database import Base, get_db, get_engine
+from app.database import Base, get_db, get_engine, url_dados
 from app.deps import COOKIE_NAME, get_current_admin
 from app.models import Configuracao, Usuario
 from app.services import banco_config_service, reset_service
@@ -39,7 +39,7 @@ def pagina_config(
             "config": config,
             "total_usuarios": total_usuarios,
             "banco": banco_config_service.partes_da_url(settings.database_url),
-            "banco_dados": banco_config_service.partes_da_url(settings.dados_database_url),
+            "banco_dados": banco_config_service.partes_da_url(url_dados()),
         },
     )
 
@@ -57,7 +57,7 @@ def pagina_banco(
         {
             "usuario": usuario,
             "dados": banco_config_service.partes_da_url(settings.database_url),
-            "sucesso": "Conexão atualizada com sucesso." if ok else None,
+            "sem_alerta": True,
         },
     )
 
@@ -135,9 +135,9 @@ def pagina_banco_dados(
         "config_banco.html",
         {
             "usuario": usuario,
-            "dados": banco_config_service.partes_da_url(settings.dados_database_url),
+            "dados": banco_config_service.partes_da_url(url_dados()),
             "modo_dados": True,
-            "sucesso": "Conexão com o banco do projeto atualizada." if ok else None,
+            "sem_alerta": True,
         },
     )
 
@@ -159,8 +159,13 @@ def salvar_banco_dados(
     ssl_ca: str = Form(""),
     usuario: Usuario = Depends(get_current_admin),
 ):
-    """Testa e salva a conexão do banco de trabalho. Não cria tabelas: o schema é do aluno."""
+    """Testa e salva a conexão do banco do projeto. Não cria tabelas: o schema é do aluno.
+
+    Responde JSON ao formulário (fetch), que mostra progresso e resultado numa janela
+    flutuante. Sem JavaScript, devolve HTML — o fluxo continua funcionando.
+    """
     dados = {"host": host, "porta": porta, "usuario": usuario_banco, "banco": banco, "ssl_ca": ssl_ca}
+    via_fetch = request.headers.get("x-requested-with") == "fetch"
 
     erro = banco_config_service.validar_nome_banco(banco)
     if not erro:
@@ -171,17 +176,24 @@ def salvar_banco_dados(
     if erro:
         # Mostra os bancos existentes no servidor para o admin escolher.
         erro += banco_config_service.sugerir_bancos(host, porta, usuario_banco, senha, ssl_ca.strip())
-
-    if erro:
+        if via_fetch:
+            return JSONResponse({"ok": False, "erro": erro}, status_code=400)
         return templates.TemplateResponse(
             request,
             "config_banco.html",
-            {"usuario": usuario, "dados": dados, "erro": erro, "modo_dados": True},
+            {
+                "usuario": usuario, "dados": dados, "erro": erro,
+                "modo_dados": True, "sem_alerta": True,
+            },
             status_code=400,
         )
 
     banco_config_service.salvar_configuracao_dados(url, ssl_ca.strip())
-    return RedirectResponse("/painel/config/banco-dados?ok=1", status_code=303)
+    if via_fetch:
+        return JSONResponse(
+            {"ok": True, "banco": banco.strip(), "destino": "/painel/config/banco-dados"}
+        )
+    return RedirectResponse("/painel/config/banco-dados", status_code=303)
 
 
 @router.post("/reset", summary="Apagar tudo (reset do sistema)")
@@ -196,6 +208,10 @@ def resetar(
     except Exception:
         pass
     reset_service.resetar_tudo(db)
+
+    # Esquece também o banco do projeto: só assim o assistente inicial reaparece e o
+    # onboarding pode ser testado do zero. As tabelas do aluno na AWS não são tocadas.
+    banco_config_service.limpar_configuracao_dados()
 
     # Sessão do admin não existe mais no banco: limpa o cookie e manda para o setup.
     resposta = RedirectResponse("/setup", status_code=303)

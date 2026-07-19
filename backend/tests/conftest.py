@@ -29,6 +29,21 @@ from app.whatsapp.factory import provedor_whatsapp
 from app.whatsapp.fake import FakeWhatsAppProvider
 
 
+@pytest.fixture(autouse=True)
+def env_isolado(tmp_path, monkeypatch):
+    """Nenhum teste pode escrever no `.env` de verdade.
+
+    Vários testes exercitam o salvamento da conexão do banco, e `banco_config_service`
+    grava direto no arquivo. Sem esta trava, rodar a suíte apaga a conexão que o usuário
+    configurou pelo painel — aconteceu de verdade durante o desenvolvimento.
+    """
+    from app.services import banco_config_service
+
+    falso = tmp_path / ".env"
+    falso.write_text("DADOS_DATABASE_URL=\n", encoding="utf-8")
+    monkeypatch.setattr(banco_config_service, "ARQUIVO_ENV", falso)
+
+
 @pytest.fixture
 def engine():
     eng = create_engine(

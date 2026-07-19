@@ -99,9 +99,14 @@
             </div>
 
             <div class="rota-acoes">
-                <label class="checkbox-inline">
+                <label class="trava" id="trava-admin">
                     <input type="checkbox" name="requer_admin" id="f-admin" value="1">
-                    Exigir administrador (o bot pede e-mail e senha antes)
+                    <span class="trava-icone" aria-hidden="true">🔒</span>
+                    <span class="trava-texto">
+                        <strong>Exigir administrador</strong>
+                        <small>O bot pede e-mail e senha antes de executar. Use em rotas que
+                            alteram ou expõem dados sensíveis.</small>
+                    </span>
                 </label>
                 <a href="/painel/rotas" class="btn btn-ghost">Cancelar</a>
                 <button type="submit" class="btn btn-primary">Criar rota</button>

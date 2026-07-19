@@ -21,8 +21,6 @@
     </div>
 </div>
 
-{% if sucesso %}<div class="alerta alerta-sucesso">{{ sucesso }}</div>{% endif %}
-
 {% if modo_dados %}
 <div class="alerta" style="background:#eef2ff; color:#3730a3;">
     Este banco é <strong>totalmente separado</strong> do banco de configuração do chatbot:
@@ -33,7 +31,7 @@
 
 <div class="wpp-grid">
     <section class="card">
-        <form method="post" action="{{ acao }}" id="form-banco">
+        <form method="post" action="{{ acao }}" id="form-banco" data-destino="{{ acao }}">
             <div class="campo-linha">
                 <label style="flex:3">Hostname (Endpoint)
                     <input type="text" name="host" value="{{ dados.host or '' }}"
@@ -92,26 +90,18 @@
     </aside>
 </div>
 
-{% if erro %}
-<div class="modal-overlay" id="modal-erro">
-    <div class="modal">
-        <div class="modal-icone">!</div>
-        <h2>Não foi possível conectar</h2>
-        <p class="modal-texto">{{ erro|safe }}</p>
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('modal-erro').remove()">
-            Entendi, vou corrigir
-        </button>
+<div class="modal-fundo" id="modal" hidden>
+    <div class="modal-caixa" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+        <div id="modal-corpo"></div>
     </div>
 </div>
-{% endif %}
 
 <script>
-    document.getElementById("form-banco").addEventListener("submit", function () {
-        var b = document.getElementById("btn-testar");
-        b.disabled = true;
-        b.textContent = "Testando conexao...";
-    });
+    window.ERRO_DO_SERVIDOR = {{ (erro or "") | tojson }};
+</script>
+<script src="/static/conexao-banco.js"></script>
 
+<script>
     // Status atual da conexao (consultado em segundo plano: a AWS pode demorar).
     (function () {
         var pill = document.getElementById("pill-banco");

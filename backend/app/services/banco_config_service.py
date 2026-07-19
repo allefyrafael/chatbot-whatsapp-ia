@@ -7,6 +7,7 @@ mensagem que o aluno entende (Security Group, senha errada, banco inexistente...
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -153,7 +154,7 @@ def testar_conexao(url: str, ssl_ca: str = "") -> tuple[bool, str]:
 
 
 def salvar_configuracao_dados(url: str, ssl_ca: str = "") -> None:
-    """Persiste a conexão do **banco de trabalho do aluno** e recarrega aquele engine."""
+    """Persiste a conexão do **banco do projeto do aluno** e recarrega aquele engine."""
     from app.database import recarregar_engine_dados
 
     conteudo = ARQUIVO_ENV.read_text(encoding="utf-8") if ARQUIVO_ENV.exists() else ""
@@ -163,14 +164,35 @@ def salvar_configuracao_dados(url: str, ssl_ca: str = "") -> None:
 
     settings.dados_database_url = url
     settings.dados_db_ssl_ca = ssl_ca
+
+    # Variáveis de ambiente têm precedência sobre o `.env` no pydantic-settings. Se uma
+    # `DADOS_DATABASE_URL` vazia estiver definida no processo, recriar as settings
+    # descartaria o que acabamos de gravar — a conexão "some" e o sistema volta a pedir
+    # que o aluno conecte, mesmo tendo confirmado o salvamento. Sincronizar evita isso.
+    os.environ["DADOS_DATABASE_URL"] = url
+    os.environ["DADOS_DB_SSL_CA"] = ssl_ca
+
     recarregar_engine_dados()
+
+
+def limpar_configuracao_dados() -> None:
+    """Esquece a conexão do banco do projeto (usado pelo 'Apagar tudo').
+
+    Só apaga a *conexão*: as tabelas do aluno na AWS continuam intactas. Sem isto, o
+    reset não devolve o sistema ao primeiro acesso de verdade — o assistente inicial
+    não reaparece e não dá para testar o onboarding do zero.
+    """
+    salvar_configuracao_dados("", "")
 
 
 def status_conexao_dados() -> tuple[str, str]:
     """Status do banco do projeto do aluno (AWS)."""
-    if not (settings.dados_database_url or "").strip():
+    from app.database import url_dados
+
+    url = url_dados()
+    if not url:
         return "nao_configurado", "Conecte o banco que você criou no AWS RDS para as rotas de IA funcionarem."
-    ok, mensagem = testar_conexao(settings.dados_database_url, settings.dados_db_ssl_ca or "")
+    ok, mensagem = testar_conexao(url, settings.dados_db_ssl_ca or "")
     if ok:
         return "conectado", "Conexão ativa com o banco do seu projeto."
     return "sem_conexao", mensagem

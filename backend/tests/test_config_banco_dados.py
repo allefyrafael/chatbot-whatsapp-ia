@@ -60,3 +60,29 @@ def test_status_dados_reporta_falha_de_conexao():
     status, mensagem = svc.status_conexao_dados()
     assert status == "sem_conexao"
     assert mensagem
+
+
+def test_reset_esquece_a_conexao_com_a_aws(admin_client, monkeypatch):
+    """"Apagar tudo" precisa devolver o sistema ao primeiro acesso de verdade.
+
+    Sem limpar a conexão, o assistente inicial não reaparece e não dá para testar o
+    onboarding do zero. Só a *conexão* é esquecida — as tabelas na AWS ficam intactas.
+    """
+    limpou = {"chamou": False}
+    monkeypatch.setattr(
+        svc, "limpar_configuracao_dados", lambda: limpou.update(chamou=True)
+    )
+    admin_client.post("/painel/config/reset", follow_redirects=False)
+    assert limpou["chamou"] is True
+
+
+def test_limpar_configuracao_grava_vazio_no_env(monkeypatch, tmp_path):
+    arquivo = tmp_path / ".env"
+    arquivo.write_text("DADOS_DATABASE_URL=mysql+pymysql://u:p@rds:3306/x\n", encoding="utf-8")
+    monkeypatch.setattr(svc, "ARQUIVO_ENV", arquivo)
+    monkeypatch.setattr("app.database.recarregar_engine_dados", lambda: None)
+
+    svc.limpar_configuracao_dados()
+
+    assert "DADOS_DATABASE_URL=\n" in arquivo.read_text(encoding="utf-8")
+    assert settings.dados_database_url == ""
