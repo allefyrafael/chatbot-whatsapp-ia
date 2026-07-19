@@ -89,6 +89,9 @@ def salvar_banco(
         conectou, mensagem = banco_config_service.testar_conexao(url, ssl_ca.strip())
         if not conectou:
             erro = mensagem
+    if erro:
+        # Mostra os bancos existentes no servidor para o admin escolher.
+        erro += banco_config_service.sugerir_bancos(host, porta, usuario_banco, senha, ssl_ca.strip())
 
     if erro:
         return templates.TemplateResponse(
@@ -165,6 +168,9 @@ def salvar_banco_dados(
         conectou, mensagem = banco_config_service.testar_conexao(url, ssl_ca.strip())
         if not conectou:
             erro = mensagem
+    if erro:
+        # Mostra os bancos existentes no servidor para o admin escolher.
+        erro += banco_config_service.sugerir_bancos(host, porta, usuario_banco, senha, ssl_ca.strip())
 
     if erro:
         return templates.TemplateResponse(

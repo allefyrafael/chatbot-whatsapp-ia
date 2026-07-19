@@ -41,6 +41,37 @@ def test_traduz_erro_2003_security_group():
     assert "security group" in svc.traduzir_erro(exc).lower()
 
 
+def test_sugestao_de_bancos_lista_os_existentes(monkeypatch):
+    """Ao errar o nome, a tela deve mostrar os bancos que existem no servidor."""
+    monkeypatch.setattr(svc, "listar_bancos_disponiveis", lambda *a, **k: ["chatbot", "aula"])
+    texto = svc.sugerir_bancos("host", "3306", "admin", "senha")
+    assert "chatbot" in texto and "aula" in texto
+
+
+def test_sugestao_silenciosa_quando_nao_da_para_consultar(monkeypatch):
+    """Se nem der para listar (credencial errada, servidor fora), não atrapalha a mensagem."""
+    monkeypatch.setattr(svc, "listar_bancos_disponiveis", lambda *a, **k: [])
+    assert svc.sugerir_bancos("host", "3306", "admin", "senha") == ""
+
+
+def test_listar_bancos_ignora_schemas_internos(monkeypatch):
+    """A lista oferecida nunca inclui mysql/sys/etc."""
+    import app.services.banco_config_service as mod
+
+    class FakeConn:
+        def execute(self, *_):
+            return [("chatbot",), ("mysql",), ("sys",), ("information_schema",)]
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    class FakeEngine:
+        def connect(self): return FakeConn()
+        def dispose(self): pass
+
+    monkeypatch.setattr(mod, "create_engine", lambda *a, **k: FakeEngine())
+    assert mod.listar_bancos_disponiveis("h", "3306", "u", "p") == ["chatbot"]
+
+
 def test_url_escapa_senha_com_caractere_especial():
     url = svc.montar_url("host.rds.amazonaws.com", "3306", "admin", "Senha@123", "chatbot")
     assert "Senha%40123" in url  # o @ da senha nao pode quebrar a URL

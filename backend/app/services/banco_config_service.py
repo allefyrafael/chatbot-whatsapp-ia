@@ -22,6 +22,38 @@ ARQUIVO_ENV = Path(__file__).resolve().parent.parent.parent / ".env"
 SCHEMAS_RESERVADOS = {"mysql", "information_schema", "performance_schema", "sys"}
 
 
+def listar_bancos_disponiveis(host: str, porta: str, usuario: str, senha: str, ssl_ca: str = "") -> list[str]:
+    """Bancos de aplicação existentes no servidor (sem os schemas internos).
+
+    Serve para transformar "adivinhe o nome" em "escolha da lista": quando o nome
+    informado não serve, mostramos ao usuário o que realmente existe lá.
+    Devolve lista vazia se não der para consultar (credenciais erradas, servidor fora...).
+    """
+    url_servidor = (
+        f"mysql+pymysql://{quote(usuario, safe='')}:{quote(senha, safe='')}"
+        f"@{host.strip()}:{porta.strip()}/"
+    )
+    connect_args = {"ssl": {"ca": ssl_ca}} if ssl_ca else {}
+    engine = create_engine(url_servidor, connect_args=connect_args)
+    try:
+        with engine.connect() as conn:
+            nomes = [linha[0] for linha in conn.execute(text("SHOW DATABASES"))]
+        return sorted(n for n in nomes if n not in SCHEMAS_RESERVADOS)
+    except Exception:  # noqa: BLE001 - é só um auxílio; falhar aqui não pode atrapalhar
+        return []
+    finally:
+        engine.dispose()
+
+
+def sugerir_bancos(host: str, porta: str, usuario: str, senha: str, ssl_ca: str = "") -> str:
+    """Trecho HTML com os bancos existentes, para anexar a uma mensagem de erro."""
+    bancos = listar_bancos_disponiveis(host, porta, usuario, senha, ssl_ca)
+    if not bancos:
+        return ""
+    itens = ", ".join(f"<b>{b}</b>" for b in bancos)
+    return f"<br><br>Neste servidor existe(m): {itens}. Use um desses no campo <b>Banco de dados</b>."
+
+
 def validar_nome_banco(banco: str) -> str | None:
     """Recusa nomes de schema de sistema. Retorna a mensagem de erro, ou None se ok."""
     nome = (banco or "").strip().lower()

@@ -41,6 +41,8 @@ def salvar_banco(
     # Recusa schemas internos do MySQL antes de tentar (erro classico: apontar p/ 'mysql').
     erro_nome = banco_config_service.validar_nome_banco(banco)
     if erro_nome:
+        # Mostra o que realmente existe no servidor, em vez de deixar o usuário adivinhar.
+        erro_nome += banco_config_service.sugerir_bancos(host, porta, usuario, senha, ssl_ca.strip())
         return templates.TemplateResponse(
             request,
             "configurar_banco.html",
@@ -52,6 +54,8 @@ def salvar_banco(
 
     ok, mensagem = banco_config_service.testar_conexao(url, ssl_ca.strip())
     if not ok:
+        if "não existe" in mensagem:  # nome de banco inexistente: ajuda a escolher
+            mensagem += banco_config_service.sugerir_bancos(host, porta, usuario, senha, ssl_ca.strip())
         return templates.TemplateResponse(
             request,
             "configurar_banco.html",
