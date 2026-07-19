@@ -71,7 +71,12 @@
                 </div>
 
                 <div id="area-retorno" style="margin-top:10px">
-                    <span class="ajuda">Quais colunas mostrar na resposta?</span>
+                    <div class="colunas-topo">
+                        <span class="ajuda">Quais colunas o bot mostra na resposta?</span>
+                        <button type="button" class="btn-link" id="alternar-colunas" hidden>
+                            Desmarcar todas
+                        </button>
+                    </div>
                     <div id="colunas_retorno" class="colunas-check">
                         <span class="ajuda">Escolha uma tabela primeiro.</span>
                     </div>
@@ -139,7 +144,13 @@
         var fVazio = document.getElementById("f-vazio");
         var fAdmin = document.getElementById("f-admin");
 
+        var alternarColunas = document.getElementById("alternar-colunas");
+
         var DIGITANDO = '<span class="chat-digitando"><i></i><i></i><i></i></span>';
+
+        /* Nomes que indicam dado que não pode ir para uma conversa de WhatsApp.
+           Serve só para escolher o padrão do checkbox — o aluno decide no fim. */
+        var COLUNA_SENSIVEL = /senha|password|hash|token|secret|cpf|cnpj|rg\b|cartao|cart[aã]o/i;
 
         function bolha(quem, html) {
             var d = document.createElement("div");
@@ -164,11 +175,14 @@
             var vazio = (fVazio.value || "").trim();
             var alvo = (tabela && tabela.value) ? tabela.value : "registro";
 
-            var pedido = {
-                buscar: "quero consultar " + (nome ? "— " + nome.toLowerCase() : "um " + alvo),
-                inserir: "quero cadastrar " + (nome ? "— " + nome.toLowerCase() : "um " + alvo),
-                excluir: "quero excluir um " + alvo
+            // Com o nome preenchido, ele vira a fala do cliente — é assim que a IA associa
+            // o pedido à rota. Sem nome, uma frase genérica sobre a tabela escolhida.
+            var generico = {
+                buscar: "quero consultar " + alvo,
+                inserir: "quero cadastrar em " + alvo,
+                excluir: "quero excluir de " + alvo
             }[op];
+            var pedido = nome ? "quero " + nome.toLowerCase() : generico;
             bolha("cliente", escapar(pedido));
 
             if (fAdmin.checked) {
@@ -237,13 +251,20 @@
                         op.value = c.nome; op.textContent = c.nome;
                         colunaFiltro.appendChild(op);
 
+                        // Colunas sensíveis começam DESMARCADAS: o que estiver marcado aqui
+                        // o bot manda no WhatsApp, e ninguem quer publicar hash de senha.
+                        var sensivel = COLUNA_SENSIVEL.test(c.nome);
                         var lb = document.createElement("label");
-                        lb.className = "checkbox-inline";
-                        lb.innerHTML = '<input type="checkbox" name="colunas_retorno" value="' +
-                            escapar(c.nome) + '" checked> ' + escapar(c.nome) +
+                        lb.className = "checkbox-inline" + (sensivel ? " coluna-sensivel" : "");
+                        lb.innerHTML =
+                            '<input type="checkbox" name="colunas_retorno" value="' +
+                            escapar(c.nome) + '"' + (sensivel ? '' : ' checked') + '> ' +
+                            escapar(c.nome) +
+                            (sensivel ? ' <span class="badge badge-alerta" title="O bot enviaria isso no WhatsApp">sensível</span>' : '') +
                             (c.obrigatoria ? ' <span class="badge">obrigatória</span>' : '');
                         colunasRetorno.appendChild(lb);
                     });
+                    alternarColunas.hidden = false;
                     desenharConversa();
                 })
                 .catch(function () {
@@ -264,6 +285,14 @@
         if (tabela) {
             tabela.addEventListener("change", carregarColunas);
             colunasRetorno.addEventListener("change", desenharConversa);
+
+            alternarColunas.addEventListener("click", function () {
+                var caixas = colunasRetorno.querySelectorAll('input[type="checkbox"]');
+                var marcar = alternarColunas.textContent.indexOf("Marcar") !== -1;
+                [].forEach.call(caixas, function (c) { c.checked = marcar; });
+                alternarColunas.textContent = marcar ? "Desmarcar todas" : "Marcar todas";
+                desenharConversa();
+            });
         }
         operacao.addEventListener("change", atualizarEtapas);
         [fNome, fPergunta, fVazio].forEach(function (campo) {

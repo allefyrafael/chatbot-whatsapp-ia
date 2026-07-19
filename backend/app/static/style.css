@@ -413,6 +413,20 @@ body.wizard-body { display: flex; overflow: auto; }
 }
 .rota-acoes .trava { margin-right: auto; }
 
+.colunas-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.btn-link {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--cor-primaria); font-size: 12px; font-weight: 500;
+    font-family: var(--fonte);
+}
+.btn-link:hover { text-decoration: underline; }
+.btn-link[hidden] { display: none; }
+
+/* Coluna cujo nome sugere segredo (senha, cpf, token): comeca desmarcada e sinalizada,
+   porque o que estiver marcado aqui o bot envia numa conversa de WhatsApp. */
+.badge-alerta { background: var(--cor-aviso-bg); color: #8a6300; border-color: #f0dca0; }
+.coluna-sensivel { color: var(--cor-texto-2); }
+
 /* Opcao de seguranca: precisa saltar aos olhos, e ficar obvio quando esta ligada. */
 .trava {
     display: flex; align-items: flex-start; gap: 10px; cursor: pointer;

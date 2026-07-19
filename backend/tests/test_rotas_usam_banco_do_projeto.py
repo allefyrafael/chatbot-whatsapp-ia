@@ -7,6 +7,7 @@ do aluno — foi exatamente o que apareceu em produção.
 """
 
 import pytest
+from sqlalchemy import inspect
 
 from app.config import settings
 
@@ -63,8 +64,8 @@ def test_usuarios_do_aluno_aparece_mas_o_da_aplicacao_nao(engines):
     from app.services import schema_service
 
     do_aluno, da_app = engines
-    assert "usuarios" not in schema_service._bloqueadas_para(do_aluno)
-    assert "usuarios" in schema_service._bloqueadas_para(da_app)
+    assert "usuarios" not in schema_service._bloqueadas_para(do_aluno, inspect(do_aluno))
+    assert "usuarios" in schema_service._bloqueadas_para(da_app, inspect(da_app))
 
 
 def test_tabelas_internas_ficam_bloqueadas_ate_no_banco_do_aluno(engines):
@@ -75,6 +76,35 @@ def test_tabelas_internas_ficam_bloqueadas_ate_no_banco_do_aluno(engines):
     from app.services import schema_service
 
     do_aluno, _ = engines
-    bloqueadas = schema_service._bloqueadas_para(do_aluno)
+    bloqueadas = schema_service._bloqueadas_para(do_aluno, inspect(do_aluno))
     for tabela in ("configuracoes", "sessoes_chat", "mensagens", "rag_blocos", "rotas_ia"):
         assert tabela in bloqueadas
+
+
+def test_copia_das_minhas_tabelas_no_banco_do_aluno_fica_oculta(monkeypatch, tmp_path):
+    """Sobra de gravação indevida some; tabela do aluno com o mesmo nome permanece.
+
+    A distinção é a assinatura: se as colunas batem exatamente com o modelo desta
+    aplicação, é cópia. Se o aluno tem um `clientes` com as colunas dele, aparece.
+    """
+    from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine
+
+    from app.services import schema_service
+
+    engine = create_engine(f"sqlite:///{tmp_path}/aluno.db")
+    md = MetaData()
+    # Cópia fiel do modelo Cliente desta aplicação -> deve sumir.
+    Table("clientes", md, *[
+        Column(c.name, c.type.__class__()) for c in
+        __import__("app.models", fromlist=["Cliente"]).Cliente.__table__.columns
+    ])
+    # Tabela do aluno com nome coincidente, colunas próprias -> deve aparecer.
+    Table("itens", md, Column("codigo", Integer, primary_key=True),
+          Column("descricao_do_aluno", String(50)))
+    md.create_all(engine)
+
+    monkeypatch.setattr("app.database.get_engine", lambda: create_engine("sqlite:///outro.db"))
+    tabelas = schema_service.listar_tabelas(engine)
+
+    assert "clientes" not in tabelas   # cópia da aplicação
+    assert "itens" in tabelas          # schema próprio do aluno
