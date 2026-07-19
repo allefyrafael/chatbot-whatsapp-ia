@@ -81,9 +81,8 @@ async def lifespan(app: FastAPI):
     # apontava para o banco do aluno. Sem isso a aplicação gravaria suas tabelas
     # internas dentro do banco dele na AWS.
     try:
-        migrado = banco_config_service.migrar_env_legado()
-        if migrado:
-            print(f"[migracao] .env atualizado: {migrado}")
+        if banco_config_service.migrar_env_legado():
+            print("[migracao] .env atualizado para o formato de dois bancos")
     except Exception as erro:  # noqa: BLE001 - nunca impedir o servidor de subir
         print(f"[migracao] nao foi possivel ajustar o .env: {erro}")
 
@@ -91,10 +90,14 @@ async def lifespan(app: FastAPI):
         try:
             criar_database_se_nao_existe()
             engine = get_engine()
+            # Atualização de versão é sempre ADITIVA: `create_all` cria só o que falta
+            # (as tabelas das rotas de IA) e `garantir_colunas` acrescenta colunas novas.
+            # Nada é apagado ou recriado — quem já usava mantém empresa, produtos,
+            # treinamento do RAG e conversas.
             Base.metadata.create_all(bind=engine)
             garantir_colunas(engine)
-        except Exception:  # noqa: BLE001 - banco inacessível não pode derrubar o servidor
-            pass
+        except Exception as erro:  # noqa: BLE001 - banco inacessível não derruba o servidor
+            print(f"[preparacao] nao consegui preparar o banco: {erro}")
     yield
 
 

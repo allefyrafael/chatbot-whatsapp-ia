@@ -237,7 +237,8 @@ def migrar_env_legado() -> str | None:
 
     Correção: a conexão remota é promovida a `DADOS_DATABASE_URL` (preservando o banco que
     o aluno já havia conectado) e `DATABASE_URL` volta para o container local.
-    Devolve uma descrição do que foi migrado, ou `None` se não havia nada a fazer.
+
+    Devolve uma descrição do que mudou, ou `None` se não havia nada a migrar.
     """
     url_app = (settings.database_url or "").strip()
     if not url_app or _e_local(url_app):
@@ -262,6 +263,12 @@ def migrar_env_legado() -> str | None:
     if promoveu:
         settings.dados_database_url = url_app
         settings.dados_db_ssl_ca = ssl_app
+
+    os.environ["DATABASE_URL"] = URL_CONFIG_PADRAO
+    os.environ["DB_SSL_CA"] = ""
+    if promoveu:
+        os.environ["DADOS_DATABASE_URL"] = url_app
+        os.environ["DADOS_DB_SSL_CA"] = ssl_app
 
     from app.database import recarregar_engine_dados
 

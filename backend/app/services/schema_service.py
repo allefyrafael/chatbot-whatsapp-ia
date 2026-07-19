@@ -63,46 +63,30 @@ def _colunas_dos_modelos() -> dict[str, set[str]]:
     return {t.name: {c.name for c in t.columns} for t in Base.metadata.sorted_tables}
 
 
-def _bloqueadas_para(engine: Engine, inspetor) -> set[str]:
+def _bloqueadas_para(engine: Engine) -> set[str]:
     """Quais nomes esconder neste engine.
 
-    Três casos:
+    No banco da **aplicação**, tudo o que é interno — inclusive `usuarios`, que ali guarda
+    hashes de senha.
 
-    1. Banco da aplicação — esconde tudo o que é interno, inclusive `usuarios`.
-    2. Banco do aluno, nomes sensíveis (`configuracoes`, `rag_blocos`…) — sempre escondidos,
-       porque uma cópia pode ter ido parar lá e exporia a chave da IA a uma rota.
-    3. Banco do aluno, demais nomes desta aplicação (`clientes`, `pedidos`, `itens`…) —
-       escondidos **apenas se as colunas forem idênticas ao modelo**. Aí é sobra de uma
-       gravação indevida, não tabela do projeto. Se o aluno tiver um `clientes` com as
-       colunas dele, a assinatura difere e a tabela aparece normalmente.
+    No banco do **aluno**, o projeto dele aparece inteiro. A única exceção são os nomes que
+    carregam segredo (`configuracoes` tem a chave do Groq, `sessoes_chat` tem estado de
+    autenticação): versões anteriores gravavam essas tabelas no RDS por engano, e expor uma
+    sobra dessas a uma rota de IA seria vazamento. São nomes desta aplicação, não de um
+    projeto de aula.
     """
     from app.database import get_engine
 
     if str(engine.url) == str(get_engine().url):
         return TABELAS_BLOQUEADAS
-
-    esconder = set(TABELAS_INTERNAS)
-    modelos = _colunas_dos_modelos()
-    existentes = set(inspetor.get_table_names())
-
-    for nome in existentes & set(modelos):
-        if nome in esconder:
-            continue
-        try:
-            colunas = {c["name"] for c in inspetor.get_columns(nome)}
-        except Exception:  # noqa: BLE001 - na dúvida, mostra a tabela ao aluno
-            continue
-        if colunas == modelos[nome]:
-            esconder.add(nome)
-
-    return esconder
+    return TABELAS_INTERNAS
 
 
 def listar_tabelas(origem: Engine | Session) -> list[str]:
     """Tabelas do banco do projeto disponíveis para montar rotas."""
     engine = _engine_de(origem)
     inspetor = inspect(engine)
-    bloqueadas = _bloqueadas_para(engine, inspetor)
+    bloqueadas = _bloqueadas_para(engine)
     return sorted(t for t in inspetor.get_table_names() if t not in bloqueadas)
 
 

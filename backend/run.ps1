@@ -67,25 +67,42 @@ if (-not (Test-Path ".env")) {
     Write-Host "[3/5] .env ja existe (mantido)." -ForegroundColor DarkGray
 }
 
-# O banco da aplicacao e o do Docker (automatico). O que o aluno configura pela tela
-# e o banco DO PROJETO DELE na AWS (DADOS_DATABASE_URL).
+# O banco DO PROJETO do aluno (AWS RDS) e configurado pela tela do painel.
 $dadosUrl = ""
 $linhaDados = Select-String -Path ".env" -Pattern "^DADOS_DATABASE_URL=" | Select-Object -First 1
 if ($linhaDados) { $dadosUrl = ($linhaDados.Line -replace "^DADOS_DATABASE_URL=", "").Trim() }
 $precisaConfigurarBanco = [string]::IsNullOrWhiteSpace($dadosUrl)
 
-# 4. Servicos no Docker: MySQL local (config do chatbot) + Evolution (WhatsApp) ---
+# Onde esta o banco de CONFIGURACAO deste aluno? Quem ja usava a versao anterior tem o
+# proprio MySQL (porta 3306) com empresa, produtos e treinamento da IA gravados la.
+# Subir o container do compose (porta 3307) nesse caso seria inutil - e pior, exigir
+# Docker impediria de abrir o painel. So subimos o container se o .env apontar p/ ele.
+$appUrl = ""
+$linhaApp = Select-String -Path ".env" -Pattern "^DATABASE_URL=" | Select-Object -First 1
+if ($linhaApp) { $appUrl = ($linhaApp.Line -replace "^DATABASE_URL=", "").Trim() }
+$bancoNoDocker = $appUrl -match ":3307/"
+
+# 4. Servicos no Docker: MySQL de configuracao (se for o caso) + Evolution (WhatsApp) --
 if ($dockerOk) {
-    Write-Host "[4/5] Subindo o banco local do chatbot (aguarde ficar pronto)..." -ForegroundColor Cyan
-    cmd /c "docker compose up -d --wait 2>&1"
-    if ($LASTEXITCODE -ne 0) { Falhar "Nao consegui subir o banco local (MySQL no Docker)." }
+    if ($bancoNoDocker) {
+        Write-Host "[4/5] Subindo o banco de configuracao (aguarde ficar pronto)..." -ForegroundColor Cyan
+        cmd /c "docker compose up -d --wait 2>&1"
+        if ($LASTEXITCODE -ne 0) { Falhar "Nao consegui subir o banco de configuracao (MySQL no Docker)." }
+    } else {
+        Write-Host "[4/5] Usando o MySQL que ja esta na sua maquina (definido no .env)." -ForegroundColor DarkGray
+        Write-Host "      Seus dados atuais sao preservados; as tabelas novas sao criadas sozinhas." -ForegroundColor DarkGray
+    }
 
     Write-Host "      Subindo a Evolution API (WhatsApp)..." -ForegroundColor Cyan
     Push-Location "..\evolution"
     cmd /c "docker compose up -d 2>&1"
     Pop-Location
+} elseif ($bancoNoDocker) {
+    Falhar "O Docker precisa estar rodando: e nele que fica o banco de configuracao. Abra o Docker Desktop e rode de novo."
 } else {
-    Falhar "O Docker precisa estar rodando: ele hospeda o banco local do chatbot e o WhatsApp. Abra o Docker Desktop e rode de novo."
+    # Banco fora do Docker: da para usar o painel inteiro; so o WhatsApp fica de fora.
+    Write-Host "[4/5] Docker fora do ar - o painel abre normalmente." -ForegroundColor Yellow
+    Write-Host "      Apenas o WhatsApp fica indisponivel ate abrir o Docker Desktop." -ForegroundColor Yellow
 }
 
 # 5. Painel ------------------------------------------------------------------

@@ -161,6 +161,28 @@ Logo após conectar o banco você já cai em <http://localhost:8000/setup>
 
 ---
 
+## 6.1 Já usava a versão anterior? (atualização)
+
+Se você já tinha o chatbot rodando e fez o treinamento da IA, **não perde nada**. Basta
+baixar a versão nova e rodar o `run.bat` como sempre.
+
+O que acontece:
+
+| | |
+|---|---|
+| Seu banco na máquina | **continua o mesmo** — o `.env` não é sobrescrito |
+| Empresa, chave do Groq, produtos, treinamento da IA | **preservados**, nada é recriado |
+| O que muda | são **acrescentadas** 3 tabelas novas (`rotas_ia`, `rota_campos`, `sessoes_chat`), usadas pelas rotas de IA |
+
+A novidade da versão é o **banco do seu projeto no AWS RDS** (seção 5) e as **rotas de IA**.
+Enquanto você não conectar o RDS, tudo o que já funcionava continua funcionando — só o
+construtor de rotas fica esperando a conexão.
+
+> Não rode "Apagar tudo" achando que é necessário para atualizar: **não é**, e isso sim
+> apagaria o seu treinamento.
+
+---
+
 ## 7. Nas próximas vezes
 
 Abra o **Docker Desktop** (esperar "Engine running") e rode o **`run.bat`**. Ele

@@ -34,6 +34,15 @@ conexão** e só então salva. Deu errado? Explica exatamente o que corrigir.
 - Primeiro acesso: <http://localhost:8000> (cai no assistente do banco)
 - **Swagger (documentação viva das rotas): <http://localhost:8000/docs>**
 
+### Atualizando de uma versão anterior
+
+Rode o `run.bat` normalmente. A atualização é **aditiva**: o `.env` existente é mantido
+(seu banco continua onde está) e apenas as tabelas novas das rotas de IA são criadas.
+Empresa, chave do Groq, produtos e treinamento do RAG são preservados.
+
+Se o seu `DATABASE_URL` aponta para um MySQL da sua própria máquina, o `run.bat` **não**
+sobe o container do compose — ele usa o banco que você já tem.
+
 ### Os dois bancos
 
 | | **Banco do seu projeto** | **Banco de configuração** |
