@@ -115,10 +115,21 @@ def _prosseguir(
     if rota.operacao == "inserir":
         return _proximo_campo(db, db_dados, sessao, rota)
 
+    # Rota que devolve a tabela inteira não tem o que perguntar.
+    if rota.operacao == "buscar" and rota.modo_busca == "todos":
+        return _listar_tudo(db, db_dados, sessao, rota)
+
+    if valor and rota.operacao == "buscar" and _valor_e_generico(valor, rota):
+        # A IA costuma preencher o "valor" com o objeto da frase ("quero ver as
+        # categorias" -> "categorias"). Isso pulava a pergunta e filtrava por um termo
+        # que não existe em nenhum registro. Nesse caso tratamos como se nada tivesse
+        # sido informado, e perguntamos.
+        valor = None
+
     if not valor:
         sessao.etapa = AGUARDANDO_VALOR
         db.commit()
-        return rota.pergunta or "O que você quer procurar?"
+        return _pergunta_de(rota)
 
     if rota.operacao == "excluir":
         dados = _dados(sessao)
@@ -129,6 +140,54 @@ def _prosseguir(
         return f'Confirma excluir "{valor}"? Responda *SIM* para confirmar ou *cancelar*.'
 
     return _executar_busca(db, db_dados, sessao, rota, valor)
+
+
+# Respostas que significam "não quero filtrar, me traga tudo".
+_PEDIDOS_DE_TUDO = {
+    "todas", "todos", "tudo", "todas elas", "todos eles",
+    "qualquer", "qualquer uma", "geral", "listar", "listar tudo", "all",
+}
+
+
+def _normalizar(texto: str) -> str:
+    return " ".join((texto or "").strip().lower().split())
+
+
+def _quer_tudo(texto: str) -> bool:
+    return _normalizar(texto) in _PEDIDOS_DE_TUDO
+
+
+def _valor_e_generico(valor: str, rota: RotaIA) -> bool:
+    """O "valor" extraído pela IA é só o assunto da frase, não um termo de busca?
+
+    "quero ver as categorias" faz a IA preencher valor="categorias". Filtrar por isso
+    devolve vazio numa tabela cheia — o sintoma que apareceu em produção. Comparamos com
+    o nome da tabela e o nome da rota, que é de onde essa confusão sempre vem.
+    """
+    v = _normalizar(valor)
+    if not v or _quer_tudo(v):
+        return True
+    alvos = {_normalizar(rota.tabela), _normalizar(rota.nome)}
+    alvos.update(a.rstrip("s") for a in list(alvos))
+    return v in alvos or v.rstrip("s") in alvos
+
+
+def _pergunta_de(rota: RotaIA) -> str:
+    """Pergunta configurada, avisando sobre "todas" quando a rota aceita."""
+    base = rota.pergunta or "O que você quer procurar?"
+    if rota.modo_busca == "perguntar_ou_todos":
+        return f'{base}\n_(responda *todas* para ver a lista completa)_'
+    return base
+
+
+def _listar_tudo(
+    db: Session, db_dados: Session, sessao: SessaoChat, rota: RotaIA
+) -> str:
+    linhas = rota_service.listar_todos(db_dados, rota)
+    limpar_fluxo(db, sessao)
+    if not linhas:
+        return rota.mensagem_vazio or "Essa tabela ainda não tem registros."
+    return rota_service.formatar_resultados(linhas)
 
 
 def _executar_busca(
@@ -209,6 +268,10 @@ def continuar_fluxo(db: Session, db_dados: Session, numero: str, texto: str) -> 
         )
 
     if etapa == AGUARDANDO_VALOR:
+        # "todas" só vale onde a rota foi configurada para aceitar; nas demais o texto
+        # segue como termo de busca normal.
+        if rota.modo_busca == "perguntar_ou_todos" and _quer_tudo(resposta_limpa):
+            return _listar_tudo(db, db_dados, sessao, rota)
         return _prosseguir(db, db_dados, sessao, rota, resposta_limpa)
 
     if etapa == AGUARDANDO_CAMPO:

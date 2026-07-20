@@ -99,7 +99,7 @@
 <script>
     window.ERRO_DO_SERVIDOR = {{ (erro or "") | tojson }};
 </script>
-<script src="/static/conexao-banco.js"></script>
+<script src="{{ estatico('conexao-banco.js') }}"></script>
 
 <script>
     // Status atual da conexao (consultado em segundo plano: a AWS pode demorar).

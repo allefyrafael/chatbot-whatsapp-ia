@@ -164,6 +164,13 @@ class RotaIA(Base):
     tabela: Mapped[str] = mapped_column(String(64))
     # Coluna usada no WHERE de buscar/excluir (nula em inserir).
     coluna_filtro: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Como a busca se comporta. Sem isto, toda rota exigia um termo de filtro e um
+    # pedido como "quero ver as categorias" acabava filtrando pela palavra "categorias"
+    # — devolvendo vazio numa tabela cheia.
+    #   'perguntar'          -> sempre pergunta o termo e filtra
+    #   'todos'              -> lista tudo, nunca pergunta
+    #   'perguntar_ou_todos' -> pergunta, e aceita "todas" para listar tudo
+    modo_busca: Mapped[str] = mapped_column(String(20), default="perguntar")
     # Colunas devolvidas na busca, separadas por vírgula. Vazio = todas as liberadas.
     colunas_retorno: Mapped[str | None] = mapped_column(Text, nullable=True)
     # O que o bot pergunta ao usuário (ex.: "Qual o nome do usuário?").

@@ -21,6 +21,7 @@ from app.templating import templates
 router = APIRouter(prefix="/painel/rotas", tags=["IA — Rotas"])
 
 OPERACOES = ("buscar", "inserir", "excluir")
+MODOS_BUSCA = ("perguntar", "todos", "perguntar_ou_todos")
 
 
 def _tabelas(db_dados: Session) -> list[str]:
@@ -45,10 +46,13 @@ def _validar(
     tabela: str,
     coluna_filtro: str,
     colunas_retorno: list[str],
+    modo_busca: str = "perguntar",
 ) -> None:
     """Fronteira de segurança: nada vai para o SQL sem existir no banco do projeto."""
     if operacao not in OPERACOES:
         raise HTTPException(status_code=400, detail="Operação inválida.")
+    if modo_busca not in MODOS_BUSCA:
+        raise HTTPException(status_code=400, detail="Modo de busca inválido.")
     try:
         schema_service.validar_tabela(db_dados, tabela)
         if coluna_filtro:
@@ -85,6 +89,7 @@ def formulario_nova(
             "rota": None,
             "tabelas": _tabelas(db_dados),
             "operacoes": OPERACOES,
+            "modos_busca": MODOS_BUSCA,
             # Sem o banco do projeto conectado não há o que oferecer: a tela explica
             # isso e manda conectar, em vez de mostrar um seletor vazio sem motivo.
             "banco_conectado": banco_dados_configurado(),
@@ -114,6 +119,7 @@ def criar(
     operacao: str = Form(...),
     tabela: str = Form(...),
     coluna_filtro: str = Form(""),
+    modo_busca: str = Form("perguntar"),
     colunas_retorno: list[str] = Form(default=[]),
     pergunta: str = Form(""),
     mensagem_vazio: str = Form(""),
@@ -123,7 +129,7 @@ def criar(
     usuario: Usuario = Depends(get_current_admin),
 ):
     """Valida tabela/colunas no banco do projeto e grava a rota no banco da aplicação."""
-    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno)
+    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno, modo_busca)
 
     db.add(
         RotaIA(
@@ -132,6 +138,7 @@ def criar(
             operacao=operacao,
             tabela=tabela,
             coluna_filtro=coluna_filtro or None,
+            modo_busca=modo_busca,
             colunas_retorno=",".join(colunas_retorno) or None,
             pergunta=pergunta.strip() or None,
             mensagem_vazio=mensagem_vazio.strip() or None,
@@ -166,6 +173,7 @@ def formulario_editar(
             "rota": rota,
             "tabelas": _tabelas(db_dados),
             "operacoes": OPERACOES,
+            "modos_busca": MODOS_BUSCA,
             "banco_conectado": banco_dados_configurado(),
         },
     )
@@ -179,6 +187,7 @@ def salvar_edicao(
     operacao: str = Form(...),
     tabela: str = Form(...),
     coluna_filtro: str = Form(""),
+    modo_busca: str = Form("perguntar"),
     colunas_retorno: list[str] = Form(default=[]),
     pergunta: str = Form(""),
     mensagem_vazio: str = Form(""),
@@ -192,13 +201,14 @@ def salvar_edicao(
     if rota is None:
         raise HTTPException(status_code=404, detail="Rota não encontrada.")
 
-    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno)
+    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno, modo_busca)
 
     rota.nome = nome.strip()
     rota.descricao = descricao.strip()
     rota.operacao = operacao
     rota.tabela = tabela
     rota.coluna_filtro = coluna_filtro or None
+    rota.modo_busca = modo_busca
     rota.colunas_retorno = ",".join(colunas_retorno) or None
     rota.pergunta = pergunta.strip() or None
     rota.mensagem_vazio = mensagem_vazio.strip() or None

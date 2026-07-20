@@ -413,6 +413,60 @@ body.wizard-body { display: flex; overflow: auto; }
 }
 .rota-acoes { justify-content: flex-end; }
 
+/* Modo de busca: tres opcoes lado a lado. Radio button solto nao deixava claro que a
+   escolha muda o comportamento do bot; o cartao mostra a consequencia de cada uma. */
+.opcoes-modo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.opcao {
+    display: flex; flex-direction: row; align-items: flex-start; gap: 8px;
+    padding: 8px 10px; border: 1px solid var(--cor-borda); border-radius: var(--raio-sm);
+    background: var(--cor-surface); cursor: pointer; font-weight: 400;
+    transition: border-color var(--transicao), background var(--transicao);
+}
+.opcao:hover { border-color: #c9ccd3; }
+.opcao input { margin-top: 2px; flex-shrink: 0; }
+.opcao-corpo { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.opcao-corpo strong { font-size: 12.5px; }
+.opcao-corpo small { font-size: 11px; color: var(--cor-texto-2); line-height: 1.3; }
+.opcao:has(input:checked) { border-color: var(--cor-primaria); background: var(--cor-primaria-soft); }
+.opcao:has(input:checked) .opcao-corpo strong { color: var(--cor-primaria); }
+
+/* Selecao de colunas: antes era uma fileira de checkboxes crus, sem dizer o tipo do
+   dado nem por que algo estava desmarcado. */
+.colunas-grade {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 5px; margin-top: 5px; max-height: 96px; overflow-y: auto; padding-right: 2px;
+}
+.coluna-card {
+    display: flex; flex-direction: row; align-items: center; gap: 7px;
+    padding: 5px 8px; border: 1px solid var(--cor-borda); border-radius: var(--raio-sm);
+    background: var(--cor-surface); cursor: pointer; font-weight: 400; min-width: 0;
+    transition: border-color var(--transicao), background var(--transicao);
+}
+.coluna-card:hover { border-color: #c9ccd3; }
+.coluna-card:has(input:checked) { border-color: var(--cor-primaria); background: var(--cor-primaria-soft); }
+.coluna-card input { flex-shrink: 0; }
+.coluna-tipo {
+    flex-shrink: 0; width: 22px; height: 18px; border-radius: 4px;
+    background: #eef0f3; color: var(--cor-texto-2);
+    font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+    display: flex; align-items: center; justify-content: center;
+}
+.coluna-nome {
+    font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.coluna-selos { display: flex; gap: 3px; margin-left: auto; flex-shrink: 0; }
+.selo {
+    font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 999px;
+    background: #eef0f3; color: var(--cor-texto-2); text-transform: uppercase;
+}
+.selo-chave { background: var(--cor-primaria-soft); color: var(--cor-primaria); }
+.selo-alerta { background: var(--cor-aviso-bg); color: #8a6300; }
+.coluna-card--sensivel .coluna-nome { color: var(--cor-texto-2); }
+
+.aviso-chave { display: flex; align-items: flex-start; gap: 5px; margin-top: 4px; color: #8a6300; }
+.aviso-chave[hidden] { display: none; }
+.aviso-chave svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
+
 .colunas-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .btn-link {
     background: none; border: 0; padding: 0; cursor: pointer;
@@ -583,7 +637,8 @@ body.wizard-body { display: flex; overflow: auto; }
     #form-rota input, #form-rota textarea, #form-rota select { padding: 5px 9px; }
     #form-rota textarea { min-height: 38px; }
     #form-rota .campo-duplo { gap: 8px; }
-    .colunas-check { max-height: 56px; }
+    .colunas-grade { max-height: 76px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    .opcao { padding: 6px 8px; }
     .rota-acoes { padding-top: 7px; margin-top: 7px; }
     .trava { padding: 5px 9px; margin-top: 6px; }
 }

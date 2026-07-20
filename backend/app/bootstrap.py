@@ -26,6 +26,12 @@ COLUNAS_ESPERADAS: dict[str, dict[str, str]] = {
     "itens": {
         "preco": "DECIMAL(10,2) NULL",
     },
+    # Colunas novas entram aqui para que o banco de quem já usa a aplicação seja
+    # ATUALIZADO no lugar, sem recriar nada: os registros do aluno (produtos,
+    # treinamento da IA, rotas) continuam onde estão.
+    "rotas_ia": {
+        "modo_busca": "VARCHAR(20) NOT NULL DEFAULT 'perguntar'",
+    },
 }
 
 

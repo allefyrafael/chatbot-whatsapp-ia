@@ -11,6 +11,9 @@ Groq), estado de autenticação ou o histórico privado de conversas.
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from sqlalchemy import inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -90,6 +93,114 @@ def listar_tabelas(origem: Engine | Session) -> list[str]:
     return sorted(t for t in inspetor.get_table_names() if t not in bloqueadas)
 
 
+# ---------------------------------------------------------------- classificação
+# Radicais que indicam segredo ou documento pessoal. Sem acento e sem separadores: a
+# comparação normaliza o nome da coluna antes, então `senha_hash`, `senhaHash`,
+# `SENHA`, `nr_documento` e `numeroCartao` caem todos aqui.
+_RADICAIS_SENSIVEIS = (
+    "senha", "password", "passwd", "pwd", "hash", "salt",
+    "token", "secret", "segredo", "apikey", "chaveapi", "credencial",
+    "cpf", "cnpj", "rg", "documento", "passaporte", "identidade",
+    "cartao", "card", "cvv", "ccv", "pin", "iban", "agencia", "conta",
+    "biometria", "digital",
+)
+# Tamanhos classicos de hash em coluna de largura fixa (md5, sha1, bcrypt, sha256).
+_TAMANHOS_DE_HASH = {32, 40, 60, 64, 128}
+
+
+def _sem_acento(texto: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
+    )
+
+
+def _normalizar_nome(nome: str) -> str:
+    """`Senha_Hash` -> `senhahash`, para comparar por radical sem depender do estilo."""
+    return re.sub(r"[^a-z0-9]", "", _sem_acento(nome).lower())
+
+
+def _estrutura(inspetor, tabela: str) -> dict:
+    """Chaves e índices declarados na tabela — os sinais que não dependem do nome."""
+    def _tentar(fn, padrao):
+        try:
+            return fn()
+        except Exception:  # noqa: BLE001 - bancos variam no que expõem
+            return padrao
+
+    pk = set(_tentar(
+        lambda: inspetor.get_pk_constraint(tabela).get("constrained_columns") or [], []
+    ))
+    fks = set()
+    for fk in _tentar(lambda: inspetor.get_foreign_keys(tabela), []):
+        fks.update(fk.get("constrained_columns") or [])
+
+    unicas = set()
+    for idx in _tentar(lambda: inspetor.get_indexes(tabela), []):
+        if idx.get("unique"):
+            unicas.update(c for c in (idx.get("column_names") or []) if c)
+    for uc in _tentar(lambda: inspetor.get_unique_constraints(tabela), []):
+        unicas.update(uc.get("column_names") or [])
+
+    return {"pk": pk, "fks": fks, "unicas": unicas}
+
+
+def _papel(tipo: str) -> str:
+    """Família do tipo, para a tela mostrar o ícone certo e sugerir filtros."""
+    t = tipo.upper()
+    if any(x in t for x in ("CHAR", "TEXT", "STRING", "ENUM")):
+        return "texto"
+    if any(x in t for x in ("DATE", "TIME")):
+        return "data"
+    if "BOOL" in t or t.startswith("BIT"):
+        return "booleano"
+    if any(x in t for x in ("INT", "DEC", "NUMERIC", "FLOAT", "DOUBLE", "REAL")):
+        return "numero"
+    return "outro"
+
+
+def _e_chave(nome: str, autoincremento: bool, estrutura: dict) -> bool:
+    """Identificador: chave primária, estrangeira, autoincremento ou nome de id.
+
+    A estrutura tem prioridade sobre o nome — é o que funciona em qualquer banco,
+    inclusive quando a coluna se chama `codigo` ou `matricula`.
+    """
+    if nome in estrutura["pk"] or nome in estrutura["fks"] or autoincremento:
+        return True
+    n = _normalizar_nome(nome)
+    return n == "id" or n.startswith("id") and len(n) > 2 or n.endswith("id")
+
+
+def _largura(tipo: str) -> int | None:
+    achado = re.search(r"\((\d+)", tipo)
+    return int(achado.group(1)) if achado else None
+
+
+def _avaliar_sensibilidade(nome: str, tipo: str, estrutura: dict) -> tuple[bool, str]:
+    """A coluna deve ficar fora da resposta do bot por padrão? E por quê?
+
+    Não existe sinal infalível para "dado sensível" — o schema não carrega essa
+    semântica. Então combinamos pistas independentes de idioma e de banco, e devolvemos
+    o motivo para a tela poder justificar a marcação ao aluno, que decide no fim.
+    """
+    n = _normalizar_nome(nome)
+
+    for radical in _RADICAIS_SENSIVEIS:
+        if radical in n:
+            return True, f"o nome contém “{radical}”"
+
+    # Largura fixa típica de hash: bcrypt (60), sha256 (64), md5 (32)...
+    if _papel(tipo) == "texto":
+        largura = _largura(tipo)
+        if largura in _TAMANHOS_DE_HASH and "CHAR" in tipo.upper():
+            return True, f"texto de {largura} caracteres — tamanho típico de hash"
+
+    # Texto único e obrigatório costuma ser credencial de acesso (login, e-mail, CPF).
+    if nome in estrutura["unicas"] and _papel(tipo) == "texto":
+        return True, "valor único — costuma identificar uma pessoa"
+
+    return False, ""
+
+
 def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:
     """Colunas da tabela, com o que o construtor precisa saber.
 
@@ -100,31 +211,35 @@ def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:
     engine = _engine_de(origem)
     inspetor = inspect(engine)
 
-    try:
-        pk = set(inspetor.get_pk_constraint(tabela).get("constrained_columns") or [])
-    except Exception:  # noqa: BLE001 - sem PK declarada, seguimos pela heurística do nome
-        pk = set()
+    estrutura = _estrutura(inspetor, tabela)
 
     colunas = []
     for col in inspetor.get_columns(tabela):
         nome = col["name"]
+        tipo = str(col["type"])
         autoincremento = bool(col.get("autoincrement")) or nome == "id"
         obrigatoria = (
             not col.get("nullable", True)
             and col.get("default") is None
             and not autoincremento
         )
-        tipo = str(col["type"])
+        sensivel, motivo = _avaliar_sensibilidade(nome, tipo, estrutura)
         colunas.append(
             {
                 "nome": nome,
                 "tipo": tipo,
                 "obrigatoria": obrigatoria,
                 "gerada": autoincremento,
-                # `chave` e `texto` orientam o construtor a sugerir uma coluna de filtro
-                # que sirva: filtrar por id faz a busca por nome devolver sempre vazio.
-                "chave": nome in pk or autoincremento or nome.startswith("id_") or nome.endswith("_id"),
-                "texto": any(t in tipo.upper() for t in ("CHAR", "TEXT", "STRING")),
+                "papel": _papel(tipo),
+                # `chave` evita sugerir um id como filtro: filtrar id por texto
+                # devolve sempre vazio.
+                "chave": _e_chave(nome, autoincremento, estrutura),
+                "texto": _papel(tipo) == "texto",
+                "unica": nome in estrutura["unicas"],
+                # `motivo` vai para a tela: o aluno vê POR QUE a coluna foi marcada e
+                # decide. A heuristica orienta, quem manda e ele.
+                "sensivel": sensivel,
+                "motivo_sensivel": motivo,
             }
         )
     return colunas

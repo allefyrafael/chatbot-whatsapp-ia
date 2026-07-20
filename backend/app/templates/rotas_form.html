@@ -7,7 +7,7 @@
 <div class="page-head">
     <div>
         <h1>{{ "Editar rota" if editando else "Nova rota de IA" }}</h1>
-        <p class="subtitulo">Monte uma ação do bot em 3 blocos. Você não precisa escrever SQL.</p>
+        <p class="subtitulo">Quatro passos. Você não precisa escrever SQL.</p>
     </div>
     <a href="/painel/rotas" class="btn btn-ghost btn-sm">← Voltar</a>
 </div>
@@ -16,19 +16,47 @@
     <section class="card rota-form-card">
         <form method="post" action="{{ acao }}" id="form-rota">
 
+            <!-- 1 ------------------------------------------------------------- -->
             <div class="bloco">
                 <div class="bloco-titulo">
                     <span class="bloco-num">1</span>
-                    <h4>O que é esta rota</h4>
-                    <span class="ajuda">— a IA lê isto para decidir quando usar</span>
+                    <h4>Identidade</h4>
+                    <span class="ajuda">— como a IA reconhece o pedido</span>
                 </div>
                 <div class="campo-duplo">
-                    <label>Nome
+                    <label>Nome da rota
                         <input type="text" name="nome" id="f-nome" required
                                value="{{ rota.nome if editando else '' }}"
-                               placeholder="Ex.: Buscar denúncia">
+                               placeholder="Ex.: Buscar categorias">
                     </label>
-                    <label>O que ela faz
+                    <label>Quando usar
+                        <input type="text" name="descricao" id="f-descricao" required
+                               value="{{ rota.descricao if editando else '' }}"
+                               placeholder="Ex.: quando quiserem ver as categorias">
+                    </label>
+                </div>
+            </div>
+
+            <!-- 2 ------------------------------------------------------------- -->
+            <div class="bloco">
+                <div class="bloco-titulo">
+                    <span class="bloco-num">2</span>
+                    <h4>Onde e o quê</h4>
+                    <span class="ajuda">— tabelas do seu banco na AWS</span>
+                </div>
+
+                {% if not banco_conectado %}
+                <div class="aviso-conectar">
+                    {{ icone('alerta') }}
+                    <div>
+                        <strong>Seu banco de dados ainda não está conectado.</strong><br>
+                        As tabelas vêm do banco que você criou no AWS RDS.
+                        <a href="/painel/config/banco-dados">Conectar agora →</a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="campo-duplo">
+                    <label>Ação
                         <select name="operacao" id="operacao" required>
                             {% set op = rota.operacao if editando else 'buscar' %}
                             <option value="buscar"  {{ 'selected' if op == 'buscar' }}>Buscar registros</option>
@@ -36,94 +64,114 @@
                             <option value="excluir" {{ 'selected' if op == 'excluir' }}>Excluir um registro</option>
                         </select>
                     </label>
-                </div>
-                <label style="margin-top:10px">Quando a IA deve usar?
-                    <textarea name="descricao" rows="2" required
-                        placeholder="Ex.: quando a pessoa quiser consultar uma denúncia pelo protocolo">{{ rota.descricao if editando else '' }}</textarea>
-                </label>
-            </div>
-
-            <div class="bloco">
-                <div class="bloco-titulo">
-                    <span class="bloco-num">2</span>
-                    <h4>Onde no seu banco</h4>
-                    <span class="ajuda">— tabelas do seu banco na AWS</span>
-                </div>
-
-                {% if not banco_conectado %}
-                <div class="aviso-conectar">
-                    <span style="font-size:18px; line-height:1">🔌</span>
-                    <div>
-                        <strong>Seu banco de dados ainda não está conectado.</strong><br>
-                        As tabelas que aparecem aqui vêm do banco que você criou no AWS RDS.
-                        <a href="/painel/config/banco-dados">Conectar agora →</a>
-                    </div>
-                </div>
-                {% else %}
-                <div class="campo-duplo">
                     <label>Tabela
                         <select name="tabela" id="tabela" required>
                             <option value="">Selecione...</option>
-                            {% for t in tabelas %}<option value="{{ t }}" {{ "selected" if editando and rota.tabela == t }}>{{ t }}</option>{% endfor %}
+                            {% for t in tabelas %}
+                            <option value="{{ t }}" {{ "selected" if editando and rota.tabela == t }}>{{ t }}</option>
+                            {% endfor %}
                         </select>
                         {% if not tabelas %}
                         <span class="ajuda">Nenhuma tabela encontrada no seu banco.</span>
                         {% endif %}
                     </label>
-                    <label id="area-filtro">Buscar pela coluna
-                        <select name="coluna_filtro" id="coluna_filtro"></select>
-                        <small class="ajuda aviso-chave" id="aviso-filtro" hidden>
-                            Essa coluna é um <b>código/ID</b>. Quem escrever um nome no
-                            WhatsApp não vai encontrar nada — prefira uma coluna de texto.
-                        </small>
-                    </label>
-                </div>
-
-                <div id="area-retorno" style="margin-top:10px">
-                    <div class="colunas-topo">
-                        <span class="ajuda">Quais colunas o bot mostra na resposta?</span>
-                        <button type="button" class="btn-link" id="alternar-colunas" hidden>
-                            Desmarcar todas
-                        </button>
-                    </div>
-                    <div id="colunas_retorno" class="colunas-check">
-                        <span class="ajuda">Escolha uma tabela primeiro.</span>
-                    </div>
                 </div>
                 {% endif %}
             </div>
 
-            <div class="bloco">
+            <!-- 3 ------------------------------------------------------------- -->
+            <div class="bloco" id="bloco-como-busca">
                 <div class="bloco-titulo">
                     <span class="bloco-num">3</span>
-                    <h4>Como o bot conversa</h4>
+                    <h4>Como busca</h4>
+                    <span class="ajuda">— traz tudo ou filtra?</span>
+                </div>
+
+                {% set modo = rota.modo_busca if editando else 'perguntar' %}
+                <div class="opcoes-modo" id="opcoes-modo">
+                    <label class="opcao">
+                        <input type="radio" name="modo_busca" value="todos"
+                               {{ 'checked' if modo == 'todos' }}>
+                        <span class="opcao-corpo">
+                            <strong>Trazer tudo</strong>
+                            <small>Lista a tabela inteira. Não pergunta nada.</small>
+                        </span>
+                    </label>
+                    <label class="opcao">
+                        <input type="radio" name="modo_busca" value="perguntar"
+                               {{ 'checked' if modo == 'perguntar' }}>
+                        <span class="opcao-corpo">
+                            <strong>Sempre filtrar</strong>
+                            <small>Pergunta o termo e busca por ele.</small>
+                        </span>
+                    </label>
+                    <label class="opcao">
+                        <input type="radio" name="modo_busca" value="perguntar_ou_todos"
+                               {{ 'checked' if modo == 'perguntar_ou_todos' }}>
+                        <span class="opcao-corpo">
+                            <strong>Deixar escolher</strong>
+                            <small>Pergunta, e aceita “todas” para listar tudo.</small>
+                        </span>
+                    </label>
+                </div>
+
+                <div id="area-filtro" style="margin-top:8px">
+                    <label>Filtrar pela coluna
+                        <select name="coluna_filtro" id="coluna_filtro"></select>
+                        <small class="ajuda aviso-chave" id="aviso-filtro" hidden>
+                            {{ icone('alerta') }}
+                            Essa coluna é um <b>código/ID</b>. Quem escrever um nome no
+                            WhatsApp não vai encontrar nada.
+                        </small>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 4 ------------------------------------------------------------- -->
+            <div class="bloco">
+                <div class="bloco-titulo">
+                    <span class="bloco-num">4</span>
+                    <h4>Como responde</h4>
                     <span class="ajuda">— veja ao lado enquanto digita</span>
                 </div>
-                <div class="campo-duplo">
+
+                <div id="area-retorno">
+                    <div class="colunas-topo">
+                        <span class="ajuda">Colunas que o bot mostra</span>
+                        <button type="button" class="btn-link" id="alternar-colunas" hidden>
+                            Desmarcar todas
+                        </button>
+                    </div>
+                    <div id="colunas_retorno" class="colunas-grade">
+                        <span class="ajuda">Escolha uma tabela primeiro.</span>
+                    </div>
+                </div>
+
+                <div class="campo-duplo" style="margin-top:8px">
                     <label id="campo-pergunta">O que o bot pergunta
                         <input type="text" name="pergunta" id="f-pergunta"
                                value="{{ rota.pergunta or '' if editando else '' }}"
-                               placeholder="Ex.: Qual o número do protocolo?">
+                               placeholder="Ex.: Qual categoria você procura?">
                     </label>
                     <label id="campo-vazio" title="Use {valor} para repetir o que a pessoa pesquisou">
                         Se não encontrar nada
                         <input type="text" name="mensagem_vazio" id="f-vazio"
                                value="{{ rota.mensagem_vazio or '' if editando else '' }}"
-                               placeholder="Ex.: Não encontrei {valor} na base.">
+                               placeholder="Ex.: Não encontrei {valor}.">
                     </label>
                 </div>
+            </div>
+
+            <div class="rota-acoes">
                 <label class="trava" id="trava-admin" title="O bot pede e-mail e senha antes de executar">
                     <input type="checkbox" name="requer_admin" id="f-admin" value="1"
                            {{ "checked" if editando and rota.requer_admin }}>
                     {{ icone('alerta') }}
                     <span class="trava-texto">
                         <strong>Exigir administrador</strong>
-                        <small>pede e-mail e senha antes de executar</small>
+                        <small>pede e-mail e senha antes</small>
                     </span>
                 </label>
-            </div>
-
-            <div class="rota-acoes">
                 <a href="/painel/rotas" class="btn btn-ghost">Cancelar</a>
                 <button type="submit" class="btn btn-primary btn-com-icone" id="btn-salvar">
                     {{ icone("salvar") if editando else icone("adicionar") }}
@@ -137,13 +185,11 @@
         <span class="preview-label">Prévia da conversa no WhatsApp</span>
         <div class="chat-fone" id="chat-fone"></div>
         <p class="dica">A pessoa não precisa usar palavras exatas — a IA entende pela
-            descrição que você escreveu no bloco 1.</p>
+            descrição do passo 1.</p>
     </aside>
 </div>
 
 <script>
-    /* Valores ja salvos (modo edicao). As colunas so existem depois que a leitura do
-       banco volta, entao o JS usa isto para remarcar o que estava configurado. */
     var ROTA_SALVA = {{ {
         "coluna_filtro": rota.coluna_filtro or "",
         "colunas_retorno": (rota.colunas_retorno or "").split(",") if rota.colunas_retorno else []
@@ -152,13 +198,16 @@
 <script>
     (function () {
         var operacao = document.getElementById("operacao");
-        var tabela = document.getElementById("tabela");           // ausente se o banco nao esta conectado
+        var tabela = document.getElementById("tabela");        // ausente sem banco conectado
         var colunaFiltro = document.getElementById("coluna_filtro");
         var colunasRetorno = document.getElementById("colunas_retorno");
         var areaFiltro = document.getElementById("area-filtro");
         var areaRetorno = document.getElementById("area-retorno");
+        var blocoComoBusca = document.getElementById("bloco-como-busca");
         var campoPergunta = document.getElementById("campo-pergunta");
         var campoVazio = document.getElementById("campo-vazio");
+        var alternarColunas = document.getElementById("alternar-colunas");
+        var avisoFiltro = document.getElementById("aviso-filtro");
         var fone = document.getElementById("chat-fone");
 
         var fNome = document.getElementById("f-nome");
@@ -166,93 +215,90 @@
         var fVazio = document.getElementById("f-vazio");
         var fAdmin = document.getElementById("f-admin");
 
-        var alternarColunas = document.getElementById("alternar-colunas");
-
         var DIGITANDO = '<span class="chat-digitando"><i></i><i></i><i></i></span>';
-
-        /* Nomes que indicam dado que não pode ir para uma conversa de WhatsApp.
-           Serve só para escolher o padrão do checkbox — o aluno decide no fim. */
-        var COLUNA_SENSIVEL = /senha|password|hash|token|secret|cpf|cnpj|rg\b|cartao|cart[aã]o/i;
-
-        var avisoFiltro = document.getElementById("aviso-filtro");
+        var ICONE_TIPO = { texto: "Aa", numero: "12", data: "📅", booleano: "01", outro: "?" };
         var colunasCarregadas = [];
 
-        function avisarSeFiltroForChave() {
-            if (!avisoFiltro) return;
-            var escolhida = colunasCarregadas.filter(function (c) {
-                return c.nome === colunaFiltro.value;
-            })[0];
-            avisoFiltro.hidden = !(escolhida && escolhida.chave);
+        function modo() {
+            var m = document.querySelector('input[name="modo_busca"]:checked');
+            return m ? m.value : "perguntar";
         }
-
+        function escapar(t) {
+            var d = document.createElement("div"); d.textContent = t; return d.innerHTML;
+        }
         function bolha(quem, html) {
             var d = document.createElement("div");
             d.className = "chat-bolha chat-" + quem;
             d.innerHTML = html;
             fone.appendChild(d);
         }
-
-        function escapar(t) {
-            var d = document.createElement("div");
-            d.textContent = t;
-            return d.innerHTML;
+        function marcadas() {
+            return [].slice.call(
+                colunasRetorno.querySelectorAll('input[type="checkbox"]:checked')
+            ).map(function (c) { return c.value; });
         }
 
-        /* Remonta a conversa inteira a cada alteracao: e barato (poucas bolhas) e evita
-           ter de reconciliar estados intermediarios. */
+        function avisarSeFiltroForChave() {
+            if (!avisoFiltro) return;
+            var col = colunasCarregadas.filter(function (c) {
+                return c.nome === colunaFiltro.value;
+            })[0];
+            avisoFiltro.hidden = !(col && col.chave) || modo() === "todos";
+        }
+
+        /* Remonta a conversa a cada mudanca: sao poucas bolhas e evita reconciliar
+           estados intermediarios. */
         function desenharConversa() {
             fone.innerHTML = "";
-            var op = operacao.value;
+            var op = operacao ? operacao.value : "buscar";
+            var alvo = (tabela && tabela.value) ? tabela.value : "registro";
             var nome = (fNome.value || "").trim();
             var pergunta = (fPergunta.value || "").trim();
             var vazio = (fVazio.value || "").trim();
-            var alvo = (tabela && tabela.value) ? tabela.value : "registro";
 
-            // Com o nome preenchido, ele vira a fala do cliente — é assim que a IA associa
-            // o pedido à rota. Sem nome, uma frase genérica sobre a tabela escolhida.
-            var generico = {
-                buscar: "quero consultar " + alvo,
-                inserir: "quero cadastrar em " + alvo,
-                excluir: "quero excluir de " + alvo
-            }[op];
-            var pedido = nome ? "quero " + nome.toLowerCase() : generico;
-            bolha("cliente", escapar(pedido));
+            bolha("cliente", escapar(
+                nome ? nome.toLowerCase() : ("quero " + (op === "inserir" ? "cadastrar" : op) + " " + alvo)
+            ));
 
             if (fAdmin.checked) {
-                bolha("bot", "Antes preciso confirmar quem é você.<br>Qual seu e-mail de administrador?");
+                bolha("bot", "Essa ação é restrita a administradores.<br>Qual o seu e-mail?");
                 bolha("cliente", "admin@empresa.com");
-                bolha("bot", "E a senha?");
+                bolha("bot", "Agora a senha:");
                 bolha("cliente", "••••••••");
             }
 
             if (op === "inserir") {
-                bolha("bot", "Certo! Vou pedir os dados um a um.<br>" +
-                             "Campos marcados como obrigatórios não podem ficar em branco.");
+                bolha("bot", "Vou pedir os dados um a um, avisando o que é obrigatório.");
                 bolha("cliente", "…");
                 bolha("bot", "Pronto! Cadastrei com sucesso. ✅");
                 fone.scrollTop = fone.scrollHeight;
                 return;
             }
 
-            bolha("bot", pergunta ? escapar(pergunta) : DIGITANDO);
-            bolha("cliente", "Maria");
+            var cols = marcadas();
+            function resultado(qtd) {
+                if (!cols.length) return "mostra o que encontrou";
+                var linhas = cols.map(function (c) { return "<b>" + escapar(c) + "</b>: …"; }).join("<br>");
+                return (qtd ? "Encontrei " + qtd + ":<br>" : "Encontrei:<br>") + linhas;
+            }
 
-            if (op === "excluir") {
-                bolha("bot", "Encontrei 1 registro. Confirma a exclusão? (sim/não)");
+            if (op === "buscar" && modo() === "todos") {
+                bolha("bot", resultado("todos os registros"));
+            } else if (op === "excluir") {
+                bolha("bot", pergunta ? escapar(pergunta) : DIGITANDO);
+                bolha("cliente", "Maria");
+                bolha("bot", "Confirma a exclusão? (sim/não)");
                 bolha("cliente", "sim");
                 bolha("bot", "Excluído. ✅");
             } else {
-                var colunas = [].slice.call(
-                    document.querySelectorAll('input[name="colunas_retorno"]:checked')
-                ).map(function (c) { return c.value; });
-                if (colunas.length) {
-                    bolha("bot", "Encontrei:<br>" + colunas.map(function (c) {
-                        return "<b>" + escapar(c) + "</b>: …";
-                    }).join("<br>"));
-                } else {
-                    bolha("bot", "mostra o que encontrou");
+                var textoPergunta = pergunta ? escapar(pergunta) : DIGITANDO;
+                if (pergunta && modo() === "perguntar_ou_todos") {
+                    textoPergunta += '<br><i>(responda <b>todas</b> para ver a lista completa)</i>';
                 }
-                if (vazio) {
+                bolha("bot", textoPergunta);
+                bolha("cliente", modo() === "perguntar_ou_todos" ? "todas" : "Maria");
+                bolha("bot", resultado(modo() === "perguntar_ou_todos" ? "todos os registros" : null));
+                if (vazio && modo() !== "perguntar_ou_todos") {
                     bolha("cliente", "e se não existir?");
                     bolha("bot", escapar(vazio.replace(/\{valor\}/g, "Maria")));
                 }
@@ -260,14 +306,36 @@
             fone.scrollTop = fone.scrollHeight;
         }
 
+        function cartaoDeColuna(c) {
+            var rotulo = ICONE_TIPO[c.papel] || ICONE_TIPO.outro;
+            var selos = "";
+            if (c.chave) selos += '<span class="selo selo-chave">ID</span>';
+            if (c.obrigatoria) selos += '<span class="selo">obrigatória</span>';
+            if (c.sensivel) {
+                selos += '<span class="selo selo-alerta" title="' +
+                    escapar(c.motivo_sensivel) + '">sensível</span>';
+            }
+            var lb = document.createElement("label");
+            lb.className = "coluna-card" + (c.sensivel ? " coluna-card--sensivel" : "");
+            if (c.sensivel) lb.title = "Marcada como sensível: " + c.motivo_sensivel;
+            lb.innerHTML =
+                '<input type="checkbox" name="colunas_retorno" value="' + escapar(c.nome) + '"' +
+                (c.sensivel ? "" : " checked") + ">" +
+                '<span class="coluna-tipo">' + rotulo + "</span>" +
+                '<span class="coluna-nome">' + escapar(c.nome) + "</span>" +
+                '<span class="coluna-selos">' + selos + "</span>";
+            return lb;
+        }
+
         function carregarColunas() {
             colunaFiltro.innerHTML = "";
             colunasRetorno.innerHTML = "";
             if (!tabela.value) return;
-            // O banco esta na AWS: a leitura das colunas leva alguns segundos.
+            // O banco esta na AWS: a leitura leva alguns segundos.
             colunasRetorno.innerHTML = '<span class="ajuda">Lendo as colunas do seu banco…</span>';
-            colunaFiltro.innerHTML = '<option>carregando…</option>';
+            colunaFiltro.innerHTML = "<option>carregando…</option>";
             colunaFiltro.disabled = true;
+
             fetch("/painel/rotas/colunas?tabela=" + encodeURIComponent(tabela.value))
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
@@ -275,69 +343,66 @@
                     colunasRetorno.innerHTML = "";
                     colunaFiltro.disabled = false;
                     colunasCarregadas = d.colunas || [];
-                    if (!d.colunas || !d.colunas.length) {
-                        colunasRetorno.innerHTML = '<span class="ajuda">Não consegui ler as colunas dessa tabela.</span>';
+
+                    if (!colunasCarregadas.length) {
+                        colunasRetorno.innerHTML =
+                            '<span class="ajuda">Não consegui ler as colunas dessa tabela.</span>';
                         desenharConversa();
                         return;
                     }
-                    d.colunas.forEach(function (c) {
+
+                    colunasCarregadas.forEach(function (c) {
                         var op = document.createElement("option");
                         op.value = c.nome;
                         op.textContent = c.nome + (c.chave ? "  (código/ID)" : "");
                         colunaFiltro.appendChild(op);
-
-                        // Colunas sensíveis começam DESMARCADAS: o que estiver marcado aqui
-                        // o bot manda no WhatsApp, e ninguem quer publicar hash de senha.
-                        var sensivel = COLUNA_SENSIVEL.test(c.nome);
-                        var lb = document.createElement("label");
-                        lb.className = "checkbox-inline" + (sensivel ? " coluna-sensivel" : "");
-                        lb.innerHTML =
-                            '<input type="checkbox" name="colunas_retorno" value="' +
-                            escapar(c.nome) + '"' + (sensivel ? '' : ' checked') + '> ' +
-                            escapar(c.nome) +
-                            (sensivel ? ' <span class="badge badge-alerta" title="O bot enviaria isso no WhatsApp">sensível</span>' : '') +
-                            (c.obrigatoria ? ' <span class="badge">obrigatória</span>' : '');
-                        colunasRetorno.appendChild(lb);
+                        colunasRetorno.appendChild(cartaoDeColuna(c));
                     });
+
                     if (ROTA_SALVA && ROTA_SALVA.coluna_filtro) {
-                        // Editando: respeita o que ja estava configurado.
                         colunaFiltro.value = ROTA_SALVA.coluna_filtro;
-                        var marcadas = ROTA_SALVA.colunas_retorno || [];
+                        var salvas = ROTA_SALVA.colunas_retorno || [];
                         [].forEach.call(
                             colunasRetorno.querySelectorAll('input[type="checkbox"]'),
-                            function (c) { c.checked = marcadas.indexOf(c.value) !== -1; }
+                            function (c) { c.checked = salvas.indexOf(c.value) !== -1; }
                         );
-                        ROTA_SALVA = null;   // so na primeira carga
+                        ROTA_SALVA = null;
                     } else {
-                        // O padrão do <select> seria a 1ª coluna — quase sempre o id, e aí
-                        // a busca por texto nunca acha nada. Preferimos a 1ª de texto.
-                        var boa = d.colunas.filter(function (c) { return c.texto && !c.chave; })[0];
+                        // O padrao do <select> seria a 1a coluna — quase sempre o id, e aí
+                        // a busca por texto nunca acha nada.
+                        var boa = colunasCarregadas.filter(function (c) {
+                            return c.texto && !c.chave;
+                        })[0];
                         if (boa) colunaFiltro.value = boa.nome;
                     }
                     avisarSeFiltroForChave();
-
                     alternarColunas.hidden = false;
                     desenharConversa();
                 })
                 .catch(function () {
                     colunaFiltro.disabled = false;
-                    colunasRetorno.innerHTML = '<span class="ajuda">Falha ao ler o banco. Selecione a tabela de novo.</span>';
+                    colunasRetorno.innerHTML =
+                        '<span class="ajuda">Falha ao ler o banco. Selecione a tabela de novo.</span>';
                 });
         }
 
         function atualizarEtapas() {
-            var op = operacao.value;
-            if (areaFiltro) areaFiltro.style.display = (op === "inserir") ? "none" : "";
+            var op = operacao ? operacao.value : "buscar";
+            var buscaTudo = op === "buscar" && modo() === "todos";
+
+            if (blocoComoBusca) blocoComoBusca.style.display = (op === "inserir") ? "none" : "";
+            if (areaFiltro) areaFiltro.style.display = buscaTudo ? "none" : "";
             if (areaRetorno) areaRetorno.style.display = (op === "buscar") ? "" : "none";
-            campoPergunta.style.display = (op === "inserir") ? "none" : "";
+            campoPergunta.style.display = (op === "inserir" || buscaTudo) ? "none" : "";
             campoVazio.style.display = (op === "buscar") ? "" : "none";
+
+            avisarSeFiltroForChave();
             desenharConversa();
         }
 
         if (tabela) {
             tabela.addEventListener("change", carregarColunas);
             colunasRetorno.addEventListener("change", desenharConversa);
-
             colunaFiltro.addEventListener("change", avisarSeFiltroForChave);
 
             alternarColunas.addEventListener("click", function () {
@@ -348,20 +413,21 @@
                 desenharConversa();
             });
         }
-        operacao.addEventListener("change", atualizarEtapas);
+        if (operacao) operacao.addEventListener("change", atualizarEtapas);
+        [].forEach.call(document.querySelectorAll('input[name="modo_busca"]'), function (r) {
+            r.addEventListener("change", atualizarEtapas);
+        });
         [fNome, fPergunta, fVazio].forEach(function (campo) {
             campo.addEventListener("input", desenharConversa);
         });
         fAdmin.addEventListener("change", desenharConversa);
 
-        // Sinaliza que esta salvando: sem isso o clique parecia nao ter efeito enquanto
-        // a validacao ia ate o banco na AWS.
+        // Validar a rota vai ate o banco na AWS: sem isto o clique parecia sem efeito.
         document.getElementById("form-rota").addEventListener("submit", function () {
             UI.carregando(document.getElementById("btn-salvar"), "Salvando…");
         });
 
         atualizarEtapas();
-        // Modo edicao: a tabela ja vem escolhida, entao carrega as colunas de saida.
         if (tabela && tabela.value) carregarColunas();
     })();
 </script>

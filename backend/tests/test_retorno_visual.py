@@ -117,3 +117,42 @@ class TestGroq:
         assert corpo["ok"] is True
         assert "salva" in corpo["mensagem"]
         assert corpo["destino"] == "/painel/itens"
+
+
+class TestCacheDeEstaticos:
+    """Depois de um `git pull`, o navegador não pode servir o CSS antigo.
+
+    Foi o que aconteceu com os ícones da lista de rotas: o HTML novo pedia
+    `.btn-icone svg { width:16px }`, o navegador usava o CSS em cache sem essa regra, e
+    o SVG aparecia sem tamanho. A versão no link muda junto com o arquivo.
+    """
+
+    def test_link_do_css_leva_versao(self, admin_client, config_empresa):
+        html = admin_client.get("/painel/rotas").text
+        assert "/static/style.css?v=" in html
+        assert "/static/ui.js?v=" in html
+
+    def test_versao_muda_quando_o_arquivo_muda(self, tmp_path, monkeypatch):
+        """Sem isto o link ficaria fixo e o cache do navegador nunca seria invalidado."""
+        import os
+
+        from app import templating
+
+        arquivo = tmp_path / "style.css"
+        arquivo.write_text("a{}", encoding="utf-8")
+        monkeypatch.setattr(templating, "STATIC_DIR", tmp_path)
+
+        antes = templating.estatico("style.css")
+
+        # mtime tem granularidade de 1s em alguns sistemas: fixamos um valor futuro em
+        # vez de reescrever e torcer para o relógio ter avançado.
+        os.utime(arquivo, (0, 1_700_000_000))
+        depois = templating.estatico("style.css")
+
+        assert antes != depois
+        assert depois.endswith("?v=1700000000")
+
+    def test_arquivo_inexistente_nao_quebra_a_pagina(self):
+        from app.templating import estatico
+
+        assert estatico("nao-existe.css") == "/static/nao-existe.css"

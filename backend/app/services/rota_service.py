@@ -44,6 +44,20 @@ def _colunas_retorno(db_dados: Session, rota: RotaIA) -> list[str]:
     return [c["nome"] for c in schema_service.listar_colunas(db_dados, rota.tabela)]
 
 
+def listar_todos(db_dados: Session, rota: RotaIA) -> list[dict]:
+    """SELECT sem WHERE, para as rotas que devolvem a tabela inteira.
+
+    Existe porque pedidos do tipo "quero ver as categorias" não têm termo de busca:
+    antes eles caíam no filtro e voltavam vazios mesmo com a tabela cheia.
+    """
+    tabela = schema_service.validar_tabela(db_dados, rota.tabela)
+    colunas = _colunas_retorno(db_dados, rota)
+
+    lista_colunas = ", ".join(f"`{c}`" for c in colunas)
+    sql = text(f"SELECT {lista_colunas} FROM `{tabela}` LIMIT {LIMITE_RESULTADOS}")
+    return [dict(linha) for linha in db_dados.execute(sql).mappings().all()]
+
+
 def executar_busca(db_dados: Session, rota: RotaIA, valor: str) -> list[dict]:
     """SELECT parametrizado no banco de trabalho, filtrando pela coluna configurada."""
     tabela = schema_service.validar_tabela(db_dados, rota.tabela)
