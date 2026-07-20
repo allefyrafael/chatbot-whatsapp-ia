@@ -15,10 +15,10 @@
 <div class="rota-grid">
     <section class="card rota-form-card">
         <ol class="trilha" id="trilha">
-            <li data-passo="1"><span>1</span> Identidade</li>
-            <li data-passo="2"><span>2</span> Onde e o quê</li>
-            <li data-passo="3"><span>3</span> Como busca</li>
-            <li data-passo="4"><span>4</span> Como responde</li>
+            <li data-passo="1"><span>1</span><b>Identidade</b></li>
+            <li data-passo="2"><span>2</span><b>Onde e o quê</b></li>
+            <li data-passo="3"><span>3</span><b>Como busca</b></li>
+            <li data-passo="4"><span>4</span><b id="titulo-passo4">Como responde</b></li>
         </ol>
 
         <form method="post" action="{{ acao }}" id="form-rota">
@@ -138,6 +138,19 @@
                     </div>
                 </div>
 
+                <div id="area-campos-insercao" hidden>
+                    <div class="colunas-topo">
+                        <span class="ajuda">Campos que o bot deve pedir para cadastrar</span>
+                    </div>
+                    <p class="ajuda" style="margin:4px 0 0">
+                        Campos <b>obrigatórios</b> vêm do <code>NOT NULL</code> do banco e
+                        não podem ser removidos. Chaves geradas automaticamente não são pedidas.
+                    </p>
+                    <div id="campos_insercao" class="colunas-grade">
+                        <span class="ajuda">Escolha uma tabela primeiro.</span>
+                    </div>
+                </div>
+
                 <div class="campo-duplo" style="margin-top:8px">
                     <label id="campo-pergunta">O que o bot pergunta
                         <input type="text" name="pergunta" id="f-pergunta"
@@ -193,7 +206,8 @@
 <script>
     var ROTA_SALVA = {{ {
         "coluna_filtro": rota.coluna_filtro or "",
-        "colunas_retorno": (rota.colunas_retorno or "").split(",") if rota.colunas_retorno else []
+        "colunas_retorno": (rota.colunas_retorno or "").split(",") if rota.colunas_retorno else [],
+        "campos_insercao": (rota.campos | map(attribute='coluna') | list) if editando else []
     } | tojson if editando else "null" | safe }};
 </script>
 <script>
@@ -204,6 +218,8 @@
         var colunasRetorno = document.getElementById("colunas_retorno");
         var areaFiltro = document.getElementById("area-filtro");
         var areaRetorno = document.getElementById("area-retorno");
+        var areaCamposInsercao = document.getElementById("area-campos-insercao");
+        var camposInsercao = document.getElementById("campos_insercao");
         var blocoComoBusca = document.getElementById("bloco-como-busca");
         var campoPergunta = document.getElementById("campo-pergunta");
         var campoVazio = document.getElementById("campo-vazio");
@@ -215,6 +231,7 @@
         var fPergunta = document.getElementById("f-pergunta");
         var fVazio = document.getElementById("f-vazio");
         var fAdmin = document.getElementById("f-admin");
+        var tituloPasso4 = document.getElementById("titulo-passo4");
 
         var DIGITANDO = '<span class="chat-digitando"><i></i><i></i><i></i></span>';
         var ICONE_TIPO = { texto: "Aa", numero: "12", data: "📅", booleano: "01", outro: "?" };
@@ -236,6 +253,12 @@
         function marcadas() {
             return [].slice.call(
                 colunasRetorno.querySelectorAll('input[type="checkbox"]:checked')
+            ).map(function (c) { return c.value; });
+        }
+
+        function camposDoCadastro() {
+            return [].slice.call(
+                camposInsercao.querySelectorAll('input[type="checkbox"]:checked')
             ).map(function (c) { return c.value; });
         }
 
@@ -282,7 +305,9 @@
             }
 
             if (op === "inserir") {
-                bolha("bot", "Vou pedir os dados um a um, avisando o que é obrigatório.");
+                var campos = camposDoCadastro();
+                var primeiro = campos[0] || "os dados necessários";
+                bolha("bot", "Informe <b>" + escapar(primeiro) + "</b> (obrigatório se o banco exigir):");
                 bolha("cliente", "…");
                 bolha("bot", "Pronto! Cadastrei com sucesso. ✅");
                 fone.scrollTop = fone.scrollHeight;
@@ -342,9 +367,28 @@
             return lb;
         }
 
+        function cartaoDeCampoInsercao(c, selecionado) {
+            var rotulo = ICONE_TIPO[c.papel] || ICONE_TIPO.outro;
+            var obrigatorio = c.obrigatoria && !c.gerada;
+            var lb = document.createElement("label");
+            lb.className = "coluna-card" + (c.gerada ? " coluna-card--sensivel" : "");
+            var marcado = obrigatorio || selecionado;
+            lb.innerHTML =
+                '<input type="checkbox" name="campos_insercao" value="' + escapar(c.nome) + '"' +
+                (marcado ? " checked" : "") + (obrigatorio ? " disabled" : "") + ">" +
+                (obrigatorio ? '<input type="hidden" name="campos_insercao" value="' + escapar(c.nome) + '">' : "") +
+                '<span class="coluna-tipo">' + rotulo + "</span>" +
+                '<span class="coluna-nome">' + escapar(c.nome) + "</span>" +
+                '<span class="coluna-selos">' +
+                    (obrigatorio ? '<span class="selo">obrig.</span>' : '<span class="selo">opcional</span>') +
+                "</span>";
+            return lb;
+        }
+
         function carregarColunas() {
             colunaFiltro.innerHTML = "";
             colunasRetorno.innerHTML = "";
+            camposInsercao.innerHTML = "";
             if (!tabela.value) return;
             // O banco esta na AWS: a leitura leva alguns segundos.
             colunasRetorno.innerHTML = '<span class="ajuda">Lendo as colunas do seu banco…</span>';
@@ -356,6 +400,7 @@
                 .then(function (d) {
                     colunaFiltro.innerHTML = "";
                     colunasRetorno.innerHTML = "";
+                    camposInsercao.innerHTML = "";
                     colunaFiltro.disabled = false;
                     colunasCarregadas = d.colunas || [];
 
@@ -372,6 +417,13 @@
                         op.textContent = c.nome + (c.chave ? "  (código/ID)" : "");
                         colunaFiltro.appendChild(op);
                         colunasRetorno.appendChild(cartaoDeColuna(c));
+                        if (!c.gerada && !c.segredo) {
+                            var camposSalvos = ROTA_SALVA && ROTA_SALVA.campos_insercao;
+                            var selecionado = camposSalvos
+                                ? camposSalvos.indexOf(c.nome) !== -1
+                                : true;
+                            camposInsercao.appendChild(cartaoDeCampoInsercao(c, selecionado));
+                        }
                     });
 
                     if (ROTA_SALVA && ROTA_SALVA.coluna_filtro) {
@@ -408,8 +460,10 @@
             if (blocoComoBusca) blocoComoBusca.style.display = (op === "inserir") ? "none" : "";
             if (areaFiltro) areaFiltro.style.display = buscaTudo ? "none" : "";
             if (areaRetorno) areaRetorno.style.display = (op === "buscar") ? "" : "none";
+            if (areaCamposInsercao) areaCamposInsercao.hidden = op !== "inserir";
             campoPergunta.style.display = (op === "inserir" || buscaTudo) ? "none" : "";
             campoVazio.style.display = (op === "buscar") ? "" : "none";
+            if (tituloPasso4) tituloPasso4.textContent = op === "inserir" ? "Campos do cadastro" : "Como responde";
 
             avisarSeFiltroForChave();
             avisarSePerguntaOfereceTudo();
@@ -419,6 +473,7 @@
         if (tabela) {
             tabela.addEventListener("change", carregarColunas);
             colunasRetorno.addEventListener("change", desenharConversa);
+            camposInsercao.addEventListener("change", desenharConversa);
             colunaFiltro.addEventListener("change", avisarSeFiltroForChave);
 
             alternarColunas.addEventListener("click", function () {
@@ -429,7 +484,11 @@
                 desenharConversa();
             });
         }
-        if (operacao) operacao.addEventListener("change", atualizarEtapas);
+        if (operacao) operacao.addEventListener("change", function () {
+            atualizarEtapas();
+            if (passosAtivos().indexOf(passoAtual) === -1) mostrarPasso(4);
+            else mostrarPasso(passoAtual);
+        });
         [].forEach.call(document.querySelectorAll('input[name="modo_busca"]'), function (r) {
             r.addEventListener("change", atualizarEtapas);
         });
@@ -464,21 +523,33 @@
             return true;
         }
 
+        function passosAtivos() {
+            // Cadastro não possui "Como busca": a etapa some, sem deixar um passo vazio.
+            return (operacao && operacao.value === "inserir") ? [1, 2, 4] : [1, 2, 3, 4];
+        }
+
         function mostrarPasso(n) {
+            var ativos = passosAtivos();
+            if (ativos.indexOf(n) === -1) n = ativos[ativos.length - 1];
             passoAtual = n;
             [].forEach.call(blocos, function (b) {
                 b.hidden = Number(b.getAttribute("data-passo")) !== n;
             });
             [].forEach.call(trilha, function (li) {
                 var p = Number(li.getAttribute("data-passo"));
+                var indice = ativos.indexOf(p);
+                li.hidden = indice === -1;
+                if (indice !== -1) li.querySelector("span").textContent = indice + 1;
                 li.classList.toggle("trilha--atual", p === n);
-                li.classList.toggle("trilha--feito", p < n);
+                li.classList.toggle("trilha--feito", indice !== -1 && indice < ativos.indexOf(n));
             });
-            legenda.textContent = "Passo " + n + " de " + TOTAL;
-            btnVoltar.hidden = n === 1;
-            btnAvancar.hidden = n === TOTAL;
-            btnSalvar.hidden = n !== TOTAL;
-            trava.hidden = n !== TOTAL;   // decisão de segurança fica junto do resumo
+            TOTAL = ativos.length;
+            var atual = ativos.indexOf(n);
+            legenda.textContent = "Passo " + (atual + 1) + " de " + TOTAL;
+            btnVoltar.hidden = atual === 0;
+            btnAvancar.hidden = atual === TOTAL - 1;
+            btnSalvar.hidden = atual !== TOTAL - 1;
+            trava.hidden = atual !== TOTAL - 1;
         }
 
         btnAvancar.addEventListener("click", function () {
@@ -486,15 +557,21 @@
                 UI.aviso("Preencha os campos deste passo antes de avançar.", "erro", 3500);
                 return;
             }
-            if (passoAtual < TOTAL) mostrarPasso(passoAtual + 1);
+            var ativos = passosAtivos();
+            var proximo = ativos[ativos.indexOf(passoAtual) + 1];
+            if (proximo) mostrarPasso(proximo);
         });
         btnVoltar.addEventListener("click", function () {
-            if (passoAtual > 1) mostrarPasso(passoAtual - 1);
+            var ativos = passosAtivos();
+            var anterior = ativos[ativos.indexOf(passoAtual) - 1];
+            if (anterior) mostrarPasso(anterior);
         });
         [].forEach.call(trilha, function (li) {
             li.addEventListener("click", function () {
                 var destino = Number(li.getAttribute("data-passo"));
-                if (destino < passoAtual) mostrarPasso(destino);   // voltar é sempre livre
+                if (passosAtivos().indexOf(destino) < passosAtivos().indexOf(passoAtual)) {
+                    mostrarPasso(destino);   // voltar é sempre livre
+                }
             });
         });
 

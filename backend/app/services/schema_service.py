@@ -232,7 +232,15 @@ def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:
     for col in inspetor.get_columns(tabela):
         nome = col["name"]
         tipo = str(col["type"])
-        autoincremento = bool(col.get("autoincrement")) or nome == "id"
+        # Nunca use o nome ``id`` como sinônimo de AUTO_INCREMENT: uma PK pode ser
+        # preenchida manualmente (matrícula, código externo, UUID) e nesse caso o bot
+        # precisa pedi-la. O inspetor do MySQL informa explicitamente autoincrement;
+        # SQLite usa INTEGER PRIMARY KEY como rowid gerado mesmo sem essa flag.
+        autoincremento = bool(col.get("autoincrement")) or (
+            engine.dialect.name == "sqlite"
+            and nome in estrutura["pk"]
+            and "INT" in tipo.upper()
+        )
         obrigatoria = (
             not col.get("nullable", True)
             and col.get("default") is None

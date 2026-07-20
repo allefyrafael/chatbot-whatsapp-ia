@@ -38,10 +38,15 @@ def listar_rotas(db: Session, apenas_ativas: bool = False) -> list[RotaIA]:
 
 def _colunas_retorno(db_dados: Session, rota: RotaIA) -> list[str]:
     """Colunas a devolver na busca (as configuradas ou todas as da tabela)."""
+    colunas_reais = schema_service.listar_colunas(db_dados, rota.tabela)
+    permitidas = {c["nome"] for c in colunas_reais if not c["segredo"]}
     if rota.colunas_retorno:
         pedidas = [c.strip() for c in rota.colunas_retorno.split(",") if c.strip()]
-        return schema_service.validar_colunas(db_dados, rota.tabela, pedidas)
-    return [c["nome"] for c in schema_service.listar_colunas(db_dados, rota.tabela)]
+        validadas = schema_service.validar_colunas(db_dados, rota.tabela, pedidas)
+        # Rotas antigas podem ter sido salvas antes da classificação de segredo. Nunca
+        # deixe uma configuração histórica fazer senha, token ou hash sair no WhatsApp.
+        return [coluna for coluna in validadas if coluna in permitidas]
+    return [c["nome"] for c in colunas_reais if c["nome"] in permitidas]
 
 
 def listar_todos(db_dados: Session, rota: RotaIA) -> list[dict]:
@@ -70,6 +75,19 @@ def colunas_filtraveis(db_dados: Session, rota: RotaIA) -> list[dict]:
     colunas = schema_service.listar_colunas(db_dados, rota.tabela)
     uteis = [c for c in colunas if not c["chave"] and not c["segredo"]]
     return uteis or colunas
+
+
+def colunas_para_excluir(db_dados: Session, rota: RotaIA) -> list[dict]:
+    """Colunas que podem identificar o registro a excluir.
+
+    Ao contrário de uma busca por texto, uma chave como ``id`` é útil e segura aqui:
+    ela permite que a pessoa escolha exatamente o registro que acabou de ver. Segredos
+    continuam fora do menu, pois nem devem ser expostos nem usados no chat.
+    """
+    return [
+        coluna for coluna in schema_service.listar_colunas(db_dados, rota.tabela)
+        if not coluna["segredo"]
+    ]
 
 
 def executar_busca_em(
@@ -108,6 +126,26 @@ def executar_busca(db_dados: Session, rota: RotaIA, valor: str) -> list[dict]:
     return [dict(linha) for linha in linhas]
 
 
+def executar_busca_exata_em(
+    db_dados: Session, rota: RotaIA, coluna: str, valor: str
+) -> list[dict]:
+    """Mostra os registros que serão afetados antes de uma exclusão.
+
+    A exclusão usa igualdade, não ``LIKE``. A prévia precisa obedecer à mesma regra,
+    para que a confirmação nunca descreva um conjunto diferente do que será removido.
+    """
+    tabela = schema_service.validar_tabela(db_dados, rota.tabela)
+    coluna_ok = schema_service.validar_colunas(db_dados, tabela, [coluna])[0]
+    colunas = _colunas_retorno(db_dados, rota)
+    lista_colunas = ", ".join(f"`{c}`" for c in colunas)
+    sql = text(
+        f"SELECT {lista_colunas} FROM `{tabela}` WHERE `{coluna_ok}` = :valor "
+        f"LIMIT {LIMITE_RESULTADOS}"
+    )
+    linhas = db_dados.execute(sql, {"valor": valor}).mappings().all()
+    return [dict(linha) for linha in linhas]
+
+
 def executar_insercao(db_dados: Session, rota: RotaIA, dados: dict) -> None:
     """INSERT parametrizado no banco de trabalho (colunas todas validadas)."""
     tabela = schema_service.validar_tabela(db_dados, rota.tabela)
@@ -120,10 +158,18 @@ def executar_insercao(db_dados: Session, rota: RotaIA, dados: dict) -> None:
     db_dados.commit()
 
 
-def executar_exclusao(db_dados: Session, rota: RotaIA, valor: str) -> int:
-    """DELETE parametrizado no banco de trabalho. Devolve quantas linhas saíram."""
+def executar_exclusao(
+    db_dados: Session, rota: RotaIA, valor: str, coluna: str | None = None
+) -> int:
+    """DELETE parametrizado no banco de trabalho. Devolve quantas linhas saíram.
+
+    ``coluna`` é escolhida pela pessoa durante o fluxo de exclusão. O fallback mantém
+    compatibilidade com rotas e testes antigos que ainda informam só ``coluna_filtro``.
+    """
     tabela = schema_service.validar_tabela(db_dados, rota.tabela)
-    coluna = schema_service.validar_colunas(db_dados, tabela, [rota.coluna_filtro or ""])[0]
+    coluna = schema_service.validar_colunas(
+        db_dados, tabela, [coluna or rota.coluna_filtro or ""]
+    )[0]
 
     sql = text(f"DELETE FROM `{tabela}` WHERE `{coluna}` = :valor")
     resultado = db_dados.execute(sql, {"valor": valor})
@@ -138,22 +184,108 @@ def campos_para_inserir(db_dados: Session, rota: RotaIA) -> list[dict]:
     ele não configurou nenhum, cai para as colunas reais da tabela no **banco de
     trabalho** (marcando as obrigatórias e ignorando as geradas, como o id).
     """
+    colunas_reais = schema_service.listar_colunas(db_dados, rota.tabela)
+    por_nome = {coluna["nome"]: coluna for coluna in colunas_reais}
+
     if rota.campos:
-        return [
-            {"coluna": c.coluna, "rotulo": c.rotulo, "obrigatorio": c.obrigatorio}
-            for c in sorted(rota.campos, key=lambda c: (c.ordem, c.id))
-        ]
+        campos = []
+        for campo in sorted(rota.campos, key=lambda c: (c.ordem, c.id)):
+            coluna = por_nome.get(campo.coluna)
+            # Uma rota salva não pode transformar um NOT NULL em opcional. O esquema
+            # real do banco é a fonte da verdade, inclusive após uma alteração de schema.
+            if coluna and not coluna["gerada"] and not coluna["segredo"]:
+                campos.append(
+                    {
+                        "coluna": campo.coluna,
+                        "rotulo": campo.rotulo,
+                        "obrigatorio": bool(coluna["obrigatoria"]),
+                    }
+                )
+        return campos
     return [
         {"coluna": c["nome"], "rotulo": c["nome"], "obrigatorio": c["obrigatoria"]}
-        for c in schema_service.listar_colunas(db_dados, rota.tabela)
-        if not c["gerada"]
+        for c in colunas_reais
+        if not c["gerada"] and not c["segredo"]
     ]
 
 
-def formatar_resultados(linhas: list[dict]) -> str:
-    """Transforma as linhas encontradas num texto amigável para o WhatsApp."""
-    partes = []
+def formatar_resultados_da_rota(
+    db_dados: Session, rota: RotaIA, linhas: list[dict]
+) -> str:
+    """Formata resultados com os tipos reais das colunas da tabela.
+
+    O formatador puro continua simples para testes e outros chamadores; este adaptador
+    é o usado no chat, onde os ícones precisam refletir o schema real.
+    """
+    return formatar_resultados(linhas, schema_service.listar_colunas(db_dados, rota.tabela))
+
+
+# Ícone por papel da coluna. O WhatsApp não tem tabela nem cor: o emoji é o único
+# recurso de hierarquia visual disponível, então cada tipo de dado ganha o seu.
+_ICONE_POR_PAPEL = {
+    "texto": "📝",
+    "numero": "🔢",
+    "data": "📅",
+    "booleano": "✅",
+    "outro": "▪️",
+}
+_ICONE_CHAVE = "🆔"
+
+
+def _formatar_valor(valor, papel: str) -> str:
+    """Deixa o valor legível para quem lê no celular, não para quem lê SQL."""
+    if valor is None or valor == "":
+        return "—"
+    if papel == "booleano" or (papel == "numero" and isinstance(valor, bool)):
+        return "Sim" if valor else "Não"
+    texto = str(valor).strip()
+    # Descrições longas viram parágrafos ilegíveis numa bolha de conversa.
+    return texto if len(texto) <= 160 else texto[:157] + "…"
+
+
+def formatar_resultados(
+    linhas: list[dict],
+    colunas: list[dict] | None = None,
+    total: int | None = None,
+) -> str:
+    """Monta a resposta do bot encaixando cada registro num modelo fixo.
+
+    O formato antigo (`1. id: 1 | nome: X | descricao: Y`) virava uma linha só,
+    interminável, em que nada se destacava. Aqui cada registro é um bloco, com *todas*
+    as colunas em linhas próprias, ícone por tipo e espaço entre registros.
+
+    `colunas` traz a classificação (papel/chave) para escolher o ícone e formatar
+    booleano como Sim/Não; sem ela, o texto ainda sai, só que sem esses detalhes.
+    """
+    if not linhas:
+        return ""
+
+    info = {c["nome"]: c for c in (colunas or [])}
+
+    def papel(nome: str) -> str:
+        return info.get(nome, {}).get("papel", "outro")
+
+    def e_chave(nome: str) -> bool:
+        return bool(info.get(nome, {}).get("chave"))
+
+    blocos = []
     for i, linha in enumerate(linhas, start=1):
-        campos = [f"{chave}: {valor}" for chave, valor in linha.items() if valor is not None]
-        partes.append(f"{i}. " + " | ".join(campos))
-    return "\n".join(partes)
+        detalhes = []
+        for nome, valor in linha.items():
+            p = papel(nome)
+            icone = _ICONE_CHAVE if e_chave(nome) else _ICONE_POR_PAPEL.get(p, "▪️")
+            if p == "booleano":
+                icone = "✅" if valor else "⛔"
+            detalhes.append(f"{icone} _{nome}:_ {_formatar_valor(valor, p)}")
+
+        blocos.append("\n".join([f"*Registro {i}*", *detalhes]))
+
+    quantos = total if total is not None else len(linhas)
+    plural = "registro encontrado" if quantos == 1 else "registros encontrados"
+    cabecalho = f"📋 *{quantos} {plural}*"
+    rodape = (
+        f"\n\n_Mostrando os {len(linhas)} primeiros._"
+        if total is not None and total > len(linhas)
+        else ""
+    )
+    return cabecalho + "\n\n" + "\n\n".join(blocos) + rodape

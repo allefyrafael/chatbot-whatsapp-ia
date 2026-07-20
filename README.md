@@ -55,6 +55,22 @@ sobe o container do compose — ele usa o banco que você já tem.
 Separar os dois é uma **fronteira de segurança**: uma rota de IA não alcança as tabelas
 internas (onde ficam senhas e a chave da IA), e o "Apagar tudo" nunca toca no banco da AWS.
 
+### Rotas de IA no WhatsApp
+
+No painel, em **Rotas de IA**, você monta ações de busca, cadastro e exclusão sem escrever
+SQL. O bot sempre confere o schema atual do banco antes de executar.
+
+- **Buscar:** mostra os resultados em cartões próprios para WhatsApp: ID e cada coluna em
+  uma linha, com ícones de tipo de dado.
+- **Cadastrar:** você escolhe os campos que o bot vai pedir. Os campos `NOT NULL` entram
+  como obrigatórios; uma PK só é ignorada quando o banco a gera automaticamente.
+- **Excluir:** o bot mostra os registros, permite escolher a coluna de filtro, apresenta a
+  prévia do que será removido e pede confirmação antes de apagar.
+
+Senhas, hashes, tokens e outros campos secretos não podem ser exibidos, usados como filtro
+ou coletados pelo WhatsApp. Dados pessoais continuam marcados no construtor para decisão
+consciente do administrador.
+
 > ⚠️ **Python 3.12, não 3.13/3.14.** As dependências (pydantic-core) ainda não suportam o
 > 3.14. O `run.bat` já usa `py -3.12`. Nunca rode `python -m venv .venv` manualmente com o
 > 3.14 — isso quebra o ambiente.

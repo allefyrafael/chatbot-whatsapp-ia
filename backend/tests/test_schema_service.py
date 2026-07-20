@@ -45,6 +45,18 @@ def test_colunas_indicam_obrigatoriedade(db_session):
     assert colunas["id"]["gerada"] is True  # id nao e pedido ao usuario
 
 
+def test_pk_manual_nao_e_confundida_com_auto_increment(db_session):
+    """Nem toda PK é gerada: um código externo deve poder ser pedido no cadastro."""
+    db_session.execute(
+        text("CREATE TABLE codigos (codigo VARCHAR(30) PRIMARY KEY, nome VARCHAR(100) NOT NULL)")
+    )
+    db_session.commit()
+
+    colunas = {c["nome"]: c for c in svc.listar_colunas(db_session, "codigos")}
+    assert colunas["codigo"]["chave"] is True
+    assert colunas["codigo"]["gerada"] is False
+
+
 def test_validar_tabela_rejeita_bloqueada_e_inexistente(db_session):
     with pytest.raises(svc.TabelaNaoPermitida):
         svc.validar_tabela(db_session, "usuarios")

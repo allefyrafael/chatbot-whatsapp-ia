@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import text
 
 from app.config import settings
-from app.models import RotaIA
+from app.models import RotaCampo, RotaIA
 
 
 @pytest.fixture
@@ -94,6 +94,66 @@ def test_criar_rota_com_tabela_bloqueada_falha(admin_client, db_session):
     )
     assert resp.status_code == 400
     assert db_session.query(RotaIA).count() == 0
+
+
+def test_criar_rota_de_cadastro_persiste_campos_e_forca_not_null(admin_client, db_session):
+    db_session.execute(text(
+        "CREATE TABLE inscritos (id INTEGER PRIMARY KEY, nome VARCHAR(100) NOT NULL, obs VARCHAR(100))"
+    ))
+    db_session.commit()
+
+    resposta = admin_client.post(
+        "/painel/rotas/nova",
+        data={
+            "nome": "Cadastrar inscrito", "descricao": "novo inscrito",
+            "operacao": "inserir", "tabela": "inscritos",
+            "campos_insercao": ["nome", "obs"],
+        },
+        follow_redirects=False,
+    )
+
+    assert resposta.status_code == 303
+    campos = db_session.query(RotaCampo).order_by(RotaCampo.ordem).all()
+    assert [campo.coluna for campo in campos] == ["nome", "obs"]
+    assert campos[0].obrigatorio is True
+    assert campos[1].obrigatorio is False
+
+
+def test_criar_rota_de_cadastro_exige_todo_not_null(admin_client, db_session):
+    db_session.execute(text(
+        "CREATE TABLE obrigatorios (id INTEGER PRIMARY KEY, titulo VARCHAR(100) NOT NULL)"
+    ))
+    db_session.commit()
+
+    resposta = admin_client.post(
+        "/painel/rotas/nova",
+        data={
+            "nome": "Cadastrar", "descricao": "novo", "operacao": "inserir",
+            "tabela": "obrigatorios", "campos_insercao": [],
+        },
+    )
+
+    assert resposta.status_code == 400
+    assert "obrigat" in resposta.json()["detail"].lower()
+
+
+def test_criar_rota_recusa_campo_secreto_no_whatsapp(admin_client, db_session):
+    db_session.execute(text(
+        "CREATE TABLE contas (id INTEGER PRIMARY KEY, nome VARCHAR(100), senha VARCHAR(100))"
+    ))
+    db_session.commit()
+
+    resposta = admin_client.post(
+        "/painel/rotas/nova",
+        data={
+            "nome": "Consultar conta", "descricao": "consulta", "operacao": "buscar",
+            "tabela": "contas", "coluna_filtro": "nome",
+            "colunas_retorno": ["nome", "senha"],
+        },
+    )
+
+    assert resposta.status_code == 400
+    assert "secreto" in resposta.json()["detail"].lower()
 
 
 def test_alternar_e_excluir_rota(admin_client, db_session):

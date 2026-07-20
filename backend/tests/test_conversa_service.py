@@ -93,7 +93,7 @@ def test_rota_restrita_pede_email_e_senha(db_session, rota_restrita):
 
     r3 = cs.continuar_fluxo(db_session, db_session, NUMERO, "senha12345")
     assert "autenticado" in r3.lower()
-    assert "Qual aluno excluir?" in r3
+    assert "Para excluir" in r3
 
 
 def test_senha_errada_cancela_a_acao(db_session, rota_restrita):
@@ -128,7 +128,7 @@ def test_admin_ja_autenticado_nao_pede_senha_de_novo(db_session, rota_restrita):
     db_session.commit()
 
     resposta = cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
-    assert "Qual aluno excluir?" in resposta
+    assert "Para excluir" in resposta
 
 
 # --------------------------------------------------------------------- exclusao
@@ -137,7 +137,10 @@ def test_exclusao_pede_confirmacao(db_session, rota_restrita):
     sessao.admin_autenticado_ate = _daqui(5)
     db_session.commit()
 
-    cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
+    primeira = cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
+    assert "Registro 1" in primeira and "id" in primeira
+    coluna = cs.continuar_fluxo(db_session, db_session, NUMERO, "nome")
+    assert "Qual valor" in coluna
     confirmacao = cs.continuar_fluxo(db_session, db_session, NUMERO, "Maria Silva")
     assert "confirma" in confirmacao.lower()
 
@@ -152,6 +155,7 @@ def test_exclusao_negada_nao_remove(db_session, rota_restrita):
     db_session.commit()
 
     cs.iniciar_rota(db_session, db_session, NUMERO, rota_restrita)
+    cs.continuar_fluxo(db_session, db_session, NUMERO, "nome")
     cs.continuar_fluxo(db_session, db_session, NUMERO, "Maria Silva")
     resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "não")
 
@@ -189,3 +193,32 @@ def test_insercao_permite_pular_campo_opcional(db_session, tabela_alunos):
     assert "cadastrei" in final.lower()
     curso = db_session.execute(text("SELECT curso FROM alunos WHERE nome='Bruno Alves'")).scalar()
     assert curso is None
+
+
+def test_insercao_nao_permite_pular_campo_obrigatorio(db_session, tabela_alunos):
+    rota = RotaIA(nome="Cadastrar", descricao="Cadastra", operacao="inserir", tabela="alunos")
+    db_session.add(rota)
+    db_session.commit()
+
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota)
+    resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "pular")
+
+    assert "obrigat" in resposta.lower()
+    assert db_session.execute(text("SELECT COUNT(*) FROM alunos")).scalar() == 1
+
+
+def test_erro_na_insercao_fica_explicado_e_permite_tentar_de_novo(db_session):
+    db_session.execute(text(
+        "CREATE TABLE inscricoes (id INTEGER PRIMARY KEY, email VARCHAR(100) NOT NULL UNIQUE)"
+    ))
+    db_session.execute(text("INSERT INTO inscricoes (email) VALUES ('ja@existe.com')"))
+    rota = RotaIA(nome="Cadastrar", descricao="Cadastra", operacao="inserir", tabela="inscricoes")
+    db_session.add(rota)
+    db_session.commit()
+
+    cs.iniciar_rota(db_session, db_session, NUMERO, rota)
+    resposta = cs.continuar_fluxo(db_session, db_session, NUMERO, "ja@existe.com")
+
+    assert "não consegui cadastrar" in resposta.lower()
+    assert "único" in resposta.lower()
+    assert db_session.get(SessaoChat, NUMERO).etapa == cs.AGUARDANDO_REPETIR_INSERCAO

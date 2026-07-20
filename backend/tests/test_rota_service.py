@@ -107,3 +107,35 @@ def test_exclusao_remove_registro(db_session, tabela_alunos):
 
     assert removidos == 1
     assert db_session.execute(text("SELECT COUNT(*) FROM alunos")).scalar() == 1
+
+
+def test_formatacao_para_whatsapp_separa_registros_e_colunas(db_session, tabela_alunos):
+    rota = _rota_busca(db_session)
+    linhas = svc.listar_todos(db_session, rota)
+
+    resposta = svc.formatar_resultados_da_rota(db_session, rota, linhas)
+
+    assert "📋 *2 registros encontrados*" in resposta
+    assert "*Registro 1*" in resposta
+    assert "_nome:_ Maria Silva" in resposta
+    assert "_curso:_ ADS" in resposta
+    assert "\n\n*Registro 2*" in resposta
+
+
+def test_segredo_nunca_e_retorno_nem_campo_do_chat(db_session):
+    db_session.execute(text(
+        "CREATE TABLE contas (id INTEGER PRIMARY KEY, nome VARCHAR(100), senha VARCHAR(100))"
+    ))
+    db_session.execute(text("INSERT INTO contas (nome, senha) VALUES ('Maria', 'nao-expor')"))
+    rota = RotaIA(
+        nome="Consultar conta", descricao="Consulta", operacao="buscar", tabela="contas",
+        coluna_filtro="nome", colunas_retorno="id,nome,senha",
+    )
+    db_session.add(rota)
+    db_session.commit()
+
+    linhas = svc.listar_todos(db_session, rota)
+    campos = svc.campos_para_inserir(db_session, rota)
+
+    assert linhas == [{"id": 1, "nome": "Maria"}]
+    assert "senha" not in {campo["coluna"] for campo in campos}

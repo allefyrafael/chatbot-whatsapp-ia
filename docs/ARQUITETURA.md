@@ -83,6 +83,28 @@ Todos em `backend/app/`.
 2. `catalogo.py` confere tabela e colunas; se algo não está liberado → **400**.
 3. O SQL é montado parametrizado (SQLAlchemy Core) e executado; retorna JSON.
 
+### Rotas de IA no WhatsApp
+
+As rotas cadastradas no painel usam `conversa_service` como máquina de estados e
+`rota_service` para executar SQL parametrizado no banco de trabalho. Há dois cuidados que
+evitam ações ambíguas ou vazamento de dados:
+
+1. **Busca e apresentação:** cada resultado é formatado como um bloco de WhatsApp, com uma
+   coluna por linha e ícones para chave, texto, número, data e booleano. Campos secretos
+   (senha, hash, token e similares) são removidos inclusive de rotas antigas que os tenham
+   gravado por engano.
+2. **Cadastro:** a lista de campos da rota é persistida em `rota_campos`. A introspecção do
+   banco é a fonte de verdade: `NOT NULL` sem valor padrão e sem geração automática é
+   obrigatório. PK manual continua sendo pedida; apenas AUTO_INCREMENT/gerada é omitida.
+   Se o banco rejeitar o INSERT, o estado da conversa permanece para tentar novamente ou
+   refazer os dados.
+3. **Exclusão:** o bot lista até 10 registros, pede que a pessoa escolha a coluna e o valor
+   de filtro, mostra uma prévia com igualdade exata e só executa após `SIM`. A coluna é
+   validada contra o schema e segredos não aparecem no menu.
+
+Campos pessoais são sinalizados no painel para escolha consciente do administrador. Campos
+secretos não podem ser exibidos, filtrados ou coletados pelo WhatsApp.
+
 ---
 
 ## 4. Modelo de dados

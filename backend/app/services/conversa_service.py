@@ -46,6 +46,9 @@ AGUARDANDO_CONFIRMACAO = "aguardando_confirmacao"
 # de filtro fixa e mal escolhida (um id, por exemplo) condena toda busca ao vazio.
 AGUARDANDO_COLUNA_FILTRO = "aguardando_coluna_filtro"
 AGUARDANDO_VALOR_FILTRO = "aguardando_valor_filtro"
+AGUARDANDO_COLUNA_EXCLUSAO = "aguardando_coluna_exclusao"
+AGUARDANDO_VALOR_EXCLUSAO = "aguardando_valor_exclusao"
+AGUARDANDO_REPETIR_INSERCAO = "aguardando_repetir_insercao"
 
 _CANCELAR = {"cancelar", "cancela", "sair", "parar"}
 _CONFIRMAR = {"sim", "s", "confirmo", "confirmar", "pode"}
@@ -133,6 +136,11 @@ def _prosseguir(
     if rota.operacao == "inserir":
         return _proximo_campo(db, db_dados, sessao, rota)
 
+    # Exclusão nunca confia no valor extraído pela IA nem na coluna salva na rota. A
+    # pessoa vê os registros, escolhe a coluna e confere o conjunto afetado antes do SIM.
+    if rota.operacao == "excluir":
+        return _iniciar_exclusao(db, db_dados, sessao, rota)
+
     # Rota que devolve a tabela inteira não tem o que perguntar.
     if rota.operacao == "buscar" and rota.modo_busca == "todos":
         return _listar_tudo(db, db_dados, sessao, rota)
@@ -157,14 +165,6 @@ def _prosseguir(
     # pessoa) e sempre interpretado, para a coluna errada nao condenar a busca.
     if rota.operacao == "buscar" and rota.modo_busca == "perguntar_ou_todos":
         return _interpretar_busca(db, db_dados, sessao, rota, valor)
-
-    if rota.operacao == "excluir":
-        dados = _dados(sessao)
-        dados["__valor__"] = valor
-        _salvar_dados(db, sessao, dados)
-        sessao.etapa = AGUARDANDO_CONFIRMACAO
-        db.commit()
-        return f'Confirma excluir "{valor}"? Responda *SIM* para confirmar ou *cancelar*.'
 
     return _executar_busca(db, db_dados, sessao, rota, valor)
 
@@ -250,12 +250,12 @@ def _achar_coluna(texto: str, colunas: list[dict]) -> str | None:
     return None
 
 
-def _menu_de_colunas(colunas: list[dict]) -> str:
+def _menu_de_colunas(colunas: list[dict], introducao: str = "Você pode filtrar por estas colunas:") -> str:
     linhas = "\n".join(
         f"{i}. *{c['nome']}*" for i, c in enumerate(colunas, start=1)
     )
     return (
-        "Você pode filtrar por estas colunas:\n" + linhas +
+        introducao + "\n" + linhas +
         "\n\nResponda o *nome* ou o *número* da coluna."
     )
 
@@ -277,7 +277,7 @@ def _filtrar_por(
     if not linhas:
         modelo = rota.mensagem_vazio or "Não encontrei nada com {valor} em {coluna}."
         return modelo.replace("{valor}", valor).replace("{coluna}", coluna)
-    return rota_service.formatar_resultados(linhas)
+    return rota_service.formatar_resultados_da_rota(db_dados, rota, linhas)
 
 
 def _interpretar_busca(
@@ -337,7 +337,7 @@ def _listar_tudo(
     limpar_fluxo(db, sessao)
     if not linhas:
         return rota.mensagem_vazio or "Essa tabela ainda não tem registros."
-    return rota_service.formatar_resultados(linhas)
+    return rota_service.formatar_resultados_da_rota(db_dados, rota, linhas)
 
 
 def _executar_busca(
@@ -349,7 +349,62 @@ def _executar_busca(
     if not linhas:
         modelo = rota.mensagem_vazio or "Não encontrei {valor}."
         return modelo.replace("{valor}", valor)
-    return rota_service.formatar_resultados(linhas)
+    return rota_service.formatar_resultados_da_rota(db_dados, rota, linhas)
+
+
+# ----------------------------------------------------------------------- exclusão
+def _iniciar_exclusao(
+    db: Session, db_dados: Session, sessao: SessaoChat, rota: RotaIA
+) -> str:
+    """Exibe os registros e só então pergunta como a pessoa quer identificá-los."""
+    linhas = rota_service.listar_todos(db_dados, rota)
+    if not linhas:
+        limpar_fluxo(db, sessao)
+        return rota.mensagem_vazio or "Não há registros para excluir."
+
+    colunas = rota_service.colunas_para_excluir(db_dados, rota)
+    sessao.etapa = AGUARDANDO_COLUNA_EXCLUSAO
+    sessao.dados_parciais = None
+    db.commit()
+    lista = rota_service.formatar_resultados_da_rota(db_dados, rota, linhas)
+    menu = _menu_de_colunas(
+        colunas,
+        "🗑️ *Para excluir, escolha a coluna que identifica o registro:*",
+    )
+    return f"{lista}\n\n{menu}"
+
+
+def _preparar_exclusao(
+    db: Session,
+    db_dados: Session,
+    sessao: SessaoChat,
+    rota: RotaIA,
+    coluna: str,
+    valor: str,
+) -> str:
+    """Mostra a prévia exata da exclusão e guarda a confirmação pendente."""
+    linhas = rota_service.executar_busca_exata_em(db_dados, rota, coluna, valor)
+    if not linhas:
+        sessao.etapa = AGUARDANDO_VALOR_EXCLUSAO
+        _salvar_dados(db, sessao, {"__coluna_exclusao__": coluna})
+        return (
+            f'Não encontrei registro com *{coluna}* igual a "{valor}". '
+            "Informe outro valor ou responda *cancelar*."
+        )
+
+    _salvar_dados(
+        db,
+        sessao,
+        {"__coluna_exclusao__": coluna, "__valor_exclusao__": valor},
+    )
+    sessao.etapa = AGUARDANDO_CONFIRMACAO
+    db.commit()
+    previa = rota_service.formatar_resultados_da_rota(db_dados, rota, linhas)
+    quantos = "registro" if len(linhas) == 1 else "registros"
+    return (
+        f"Encontrei estes {len(linhas)} {quantos} para excluir:\n\n{previa}"
+        "\n\n⚠️ *Confirma a exclusão?* Responda *SIM* para confirmar ou *cancelar*."
+    )
 
 
 # ----------------------------------------------------------------------- inserção
@@ -370,10 +425,40 @@ def _proximo_campo(db: Session, db_dados: Session, sessao: SessaoChat, rota: Rot
 
     valores = {c: v for c, v in dados.items() if not c.startswith("__")}
     # Grava no banco do aluno primeiro; se falhar, o fluxo continua para nova tentativa.
-    rota_service.executar_insercao(db_dados, rota, valores)
+    try:
+        rota_service.executar_insercao(db_dados, rota, valores)
+    except Exception as erro:  # noqa: BLE001 - o banco do aluno pode recusar a inserção
+        # Depois de uma falha SQLAlchemy a sessão fica em estado de erro até rollback.
+        # O estado da conversa mora no outro banco e continua intacto para permitir retry.
+        db_dados.rollback()
+        sessao.etapa = AGUARDANDO_REPETIR_INSERCAO
+        db.commit()
+        return (
+            "Não consegui cadastrar este registro. "
+            f"*Motivo:* {_explicar_erro_insercao(erro)}\n\n"
+            "Responda *tentar novamente* para repetir com estes dados, "
+            "*refazer* para informar os campos de novo ou *cancelar*."
+        )
     limpar_fluxo(db, sessao)
     resumo = ", ".join(f"{c}: {v}" for c, v in valores.items())
     return f"Pronto! Cadastrei com sucesso.\n{resumo}"
+
+
+def _explicar_erro_insercao(erro: Exception) -> str:
+    """Traduz os erros mais comuns do banco sem despejar SQL no WhatsApp."""
+    detalhe = str(getattr(erro, "orig", erro))
+    normalizado = detalhe.lower()
+    if "not null" in normalizado or "cannot be null" in normalizado:
+        return "um campo obrigatório ficou sem valor."
+    if "unique" in normalizado or "duplicate" in normalizado:
+        return "já existe um registro com um valor que precisa ser único."
+    if "foreign key" in normalizado or "constraint failed" in normalizado:
+        return "uma referência informada não existe ou não pode ser usada."
+    if "too long" in normalizado or "data truncation" in normalizado:
+        return "um dos valores é maior do que o permitido para esse campo."
+    # A classe mantém a mensagem útil para quem administra sem expor comandos SQL nem
+    # detalhes de conexão (host, usuário, senha).
+    return f"o banco recusou os dados ({type(erro).__name__})."
 
 
 # ------------------------------------------------------------------------ continuar
@@ -444,6 +529,33 @@ def continuar_fluxo(db: Session, db_dados: Session, numero: str, texto: str) -> 
             return _pedir_coluna(db, sessao, rota_service.colunas_filtraveis(db_dados, rota))
         return _filtrar_por(db, db_dados, sessao, rota, coluna, resposta_limpa)
 
+    if etapa == AGUARDANDO_COLUNA_EXCLUSAO:
+        colunas = rota_service.colunas_para_excluir(db_dados, rota)
+        # Quem escreve "nome: Maria" não precisa responder duas vezes.
+        casou = _UMA_FRASE.match(resposta_limpa)
+        if casou:
+            coluna = _achar_coluna(casou.group("coluna"), colunas)
+            if coluna:
+                return _preparar_exclusao(
+                    db, db_dados, sessao, rota, coluna, casou.group("valor").strip()
+                )
+        coluna = _achar_coluna(resposta_limpa, colunas)
+        if not coluna:
+            return "Não reconheci essa coluna.\n\n" + _menu_de_colunas(
+                colunas,
+                "🗑️ *Escolha a coluna que identifica o registro:*",
+            )
+        _salvar_dados(db, sessao, {"__coluna_exclusao__": coluna})
+        sessao.etapa = AGUARDANDO_VALOR_EXCLUSAO
+        db.commit()
+        return f"Qual valor você quer usar em *{coluna}*?"
+
+    if etapa == AGUARDANDO_VALOR_EXCLUSAO:
+        coluna = _dados(sessao).get("__coluna_exclusao__")
+        if not coluna:
+            return _iniciar_exclusao(db, db_dados, sessao, rota)
+        return _preparar_exclusao(db, db_dados, sessao, rota, coluna, resposta_limpa)
+
     if etapa == AGUARDANDO_VALOR:
         if _quer_tudo(resposta_limpa):
             if rota.modo_busca == "perguntar_ou_todos":
@@ -465,23 +577,40 @@ def continuar_fluxo(db: Session, db_dados: Session, numero: str, texto: str) -> 
         dados = _dados(sessao)
         coluna = dados.pop("__campo__", None)
         if coluna:
-            if resposta_limpa.lower() not in _PULAR:
-                dados[coluna] = resposta_limpa
-            else:
+            campos = {campo["coluna"]: campo for campo in rota_service.campos_para_inserir(db_dados, rota)}
+            campo = campos.get(coluna, {})
+            if resposta_limpa.lower() in _PULAR:
+                if campo.get("obrigatorio"):
+                    dados["__campo__"] = coluna
+                    _salvar_dados(db, sessao, dados)
+                    return f'*{campo.get("rotulo", coluna)}* é obrigatório e não pode ficar em branco.'
                 dados[coluna] = None
+            else:
+                dados[coluna] = resposta_limpa
         _salvar_dados(db, sessao, dados)
         return _proximo_campo(db, db_dados, sessao, rota)
+
+    if etapa == AGUARDANDO_REPETIR_INSERCAO:
+        resposta_normalizada = _normalizar(resposta_limpa)
+        if resposta_normalizada in {"refazer", "refaz", "corrigir"}:
+            _salvar_dados(db, sessao, {})
+            return _proximo_campo(db, db_dados, sessao, rota)
+        if resposta_normalizada in {"tentar", "tentar novamente", "sim", "s"}:
+            return _proximo_campo(db, db_dados, sessao, rota)
+        return "Responda *tentar novamente*, *refazer* ou *cancelar*."
 
     if etapa == AGUARDANDO_CONFIRMACAO:
         if resposta_limpa.lower() not in _CONFIRMAR:
             limpar_fluxo(db, sessao)
             return "Ok, não excluí nada."
-        valor = _dados(sessao).get("__valor__", "")
+        dados = _dados(sessao)
+        valor = dados.get("__valor_exclusao__", dados.get("__valor__", ""))
+        coluna = dados.get("__coluna_exclusao__")
         # Exclui no banco do aluno primeiro; se falhar, o fluxo permanece.
-        removidos = rota_service.executar_exclusao(db_dados, rota, valor)
+        removidos = rota_service.executar_exclusao(db_dados, rota, valor, coluna)
         limpar_fluxo(db, sessao)
         if removidos:
-            return f'Pronto, excluí "{valor}".'
+            return f'Pronto, excluí {removidos} registro(s) com *{coluna or rota.coluna_filtro}* igual a "{valor}".'
         return f'Não encontrei "{valor}" para excluir.'
 
     limpar_fluxo(db, sessao)

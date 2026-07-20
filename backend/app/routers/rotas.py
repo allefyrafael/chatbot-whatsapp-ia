@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.database import banco_dados_configurado, get_db, get_db_dados
 from app.deps import get_current_admin
-from app.models import RotaIA, Usuario
+from app.models import RotaCampo, RotaIA, Usuario
 from app.services import rota_service, schema_service
 from app.templating import templates
 
@@ -47,6 +47,7 @@ def _validar(
     coluna_filtro: str,
     colunas_retorno: list[str],
     modo_busca: str = "perguntar",
+    campos_insercao: list[str] | None = None,
 ) -> None:
     """Fronteira de segurança: nada vai para o SQL sem existir no banco do projeto."""
     if operacao not in OPERACOES:
@@ -55,12 +56,78 @@ def _validar(
         raise HTTPException(status_code=400, detail="Modo de busca inválido.")
     try:
         schema_service.validar_tabela(db_dados, tabela)
+        colunas_schema = {
+            coluna["nome"]: coluna
+            for coluna in schema_service.listar_colunas(db_dados, tabela)
+        }
         if coluna_filtro:
             schema_service.validar_colunas(db_dados, tabela, [coluna_filtro])
+            if colunas_schema[coluna_filtro]["segredo"]:
+                raise schema_service.ColunaNaoPermitida(
+                    f"A coluna '{coluna_filtro}' é secreta e não pode ser usada no chat."
+                )
         if colunas_retorno:
             schema_service.validar_colunas(db_dados, tabela, colunas_retorno)
+            segredos_retorno = [
+                coluna for coluna in colunas_retorno if colunas_schema[coluna]["segredo"]
+            ]
+            if segredos_retorno:
+                raise schema_service.ColunaNaoPermitida(
+                    "Campos secretos não podem aparecer no WhatsApp: "
+                    + ", ".join(sorted(set(segredos_retorno)))
+                )
+        if operacao == "inserir":
+            campos = campos_insercao or []
+            if campos:
+                schema_service.validar_colunas(db_dados, tabela, campos)
+            colunas = list(colunas_schema.values())
+            segredos = {coluna["nome"] for coluna in colunas if coluna["segredo"]}
+            escolhidos_secretos = set(campos) & segredos
+            if escolhidos_secretos:
+                raise schema_service.ColunaNaoPermitida(
+                    "Campos secretos não podem ser coletados pelo WhatsApp: "
+                    + ", ".join(sorted(escolhidos_secretos))
+                )
+            geradas = {coluna["nome"] for coluna in colunas if coluna["gerada"]}
+            escolhidas_geradas = set(campos) & geradas
+            if escolhidas_geradas:
+                raise schema_service.ColunaNaoPermitida(
+                    "Campos gerados automaticamente não devem ser selecionados: "
+                    + ", ".join(sorted(escolhidas_geradas))
+                )
+            obrigatorias = {
+                coluna["nome"] for coluna in colunas
+                if coluna["obrigatoria"] and not coluna["gerada"]
+            }
+            faltando = obrigatorias - set(campos)
+            if faltando:
+                raise schema_service.ColunaNaoPermitida(
+                    "Os campos obrigatórios da tabela precisam ser selecionados: "
+                    + ", ".join(sorted(faltando))
+                )
     except (schema_service.TabelaNaoPermitida, schema_service.ColunaNaoPermitida) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+def _configurar_campos_insercao(
+    db_dados: Session, rota: RotaIA, campos_insercao: list[str]
+) -> None:
+    """Persiste a seleção de campos do cadastro usando o NOT NULL real do banco."""
+    por_nome = {
+        coluna["nome"]: coluna
+        for coluna in schema_service.listar_colunas(db_dados, rota.tabela)
+    }
+    rota.campos.clear()
+    for ordem, nome in enumerate(campos_insercao):
+        coluna = por_nome[nome]
+        rota.campos.append(
+            RotaCampo(
+                coluna=nome,
+                rotulo=nome,
+                obrigatorio=bool(coluna["obrigatoria"]),
+                ordem=ordem,
+            )
+        )
 
 
 @router.get("", response_class=HTMLResponse, summary="Listar rotas de IA")
@@ -156,6 +223,7 @@ def criar(
     coluna_filtro: str = Form(""),
     modo_busca: str = Form("perguntar"),
     colunas_retorno: list[str] = Form(default=[]),
+    campos_insercao: list[str] = Form(default=[]),
     pergunta: str = Form(""),
     mensagem_vazio: str = Form(""),
     requer_admin: str | None = Form(None),
@@ -164,22 +232,26 @@ def criar(
     usuario: Usuario = Depends(get_current_admin),
 ):
     """Valida tabela/colunas no banco do projeto e grava a rota no banco da aplicação."""
-    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno, modo_busca)
-
-    db.add(
-        RotaIA(
-            nome=nome.strip(),
-            descricao=descricao.strip(),
-            operacao=operacao,
-            tabela=tabela,
-            coluna_filtro=coluna_filtro or None,
-            modo_busca=modo_busca,
-            colunas_retorno=",".join(colunas_retorno) or None,
-            pergunta=pergunta.strip() or None,
-            mensagem_vazio=mensagem_vazio.strip() or None,
-            requer_admin=bool(requer_admin),
-        )
+    _validar(
+        db_dados, operacao, tabela, coluna_filtro, colunas_retorno,
+        modo_busca, campos_insercao,
     )
+
+    rota = RotaIA(
+        nome=nome.strip(),
+        descricao=descricao.strip(),
+        operacao=operacao,
+        tabela=tabela,
+        coluna_filtro=coluna_filtro or None,
+        modo_busca=modo_busca,
+        colunas_retorno=",".join(colunas_retorno) or None,
+        pergunta=pergunta.strip() or None,
+        mensagem_vazio=mensagem_vazio.strip() or None,
+        requer_admin=bool(requer_admin),
+    )
+    db.add(rota)
+    if operacao == "inserir":
+        _configurar_campos_insercao(db_dados, rota, campos_insercao)
     db.commit()
     return RedirectResponse("/painel/rotas", status_code=303)
 
@@ -224,6 +296,7 @@ def salvar_edicao(
     coluna_filtro: str = Form(""),
     modo_busca: str = Form("perguntar"),
     colunas_retorno: list[str] = Form(default=[]),
+    campos_insercao: list[str] = Form(default=[]),
     pergunta: str = Form(""),
     mensagem_vazio: str = Form(""),
     requer_admin: str | None = Form(None),
@@ -236,7 +309,10 @@ def salvar_edicao(
     if rota is None:
         raise HTTPException(status_code=404, detail="Rota não encontrada.")
 
-    _validar(db_dados, operacao, tabela, coluna_filtro, colunas_retorno, modo_busca)
+    _validar(
+        db_dados, operacao, tabela, coluna_filtro, colunas_retorno,
+        modo_busca, campos_insercao,
+    )
 
     rota.nome = nome.strip()
     rota.descricao = descricao.strip()
@@ -248,6 +324,10 @@ def salvar_edicao(
     rota.pergunta = pergunta.strip() or None
     rota.mensagem_vazio = mensagem_vazio.strip() or None
     rota.requer_admin = bool(requer_admin)
+    if operacao == "inserir":
+        _configurar_campos_insercao(db_dados, rota, campos_insercao)
+    else:
+        rota.campos.clear()
     db.commit()
     return RedirectResponse("/painel/rotas", status_code=303)
 
