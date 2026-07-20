@@ -97,13 +97,21 @@ def listar_tabelas(origem: Engine | Session) -> list[str]:
 # Radicais que indicam segredo ou documento pessoal. Sem acento e sem separadores: a
 # comparação normaliza o nome da coluna antes, então `senha_hash`, `senhaHash`,
 # `SENHA`, `nr_documento` e `numeroCartao` caem todos aqui.
-_RADICAIS_SENSIVEIS = (
+# SEGREDO: nunca deve sair do banco — nem exibido, nem usado como filtro.
+_RADICAIS_SEGREDO = (
     "senha", "password", "passwd", "pwd", "hash", "salt",
     "token", "secret", "segredo", "apikey", "chaveapi", "credencial",
-    "cpf", "cnpj", "rg", "documento", "passaporte", "identidade",
-    "cartao", "card", "cvv", "ccv", "pin", "iban", "agencia", "conta",
-    "biometria", "digital",
+    "cvv", "ccv", "pin",
 )
+# PESSOAL: identifica alguém. Fica desmarcado por padrão na resposta do bot, mas continua
+# disponível como filtro — procurar "o cliente com CPF X" é uso legítimo.
+_RADICAIS_PESSOAIS = (
+    "cpf", "cnpj", "rg", "documento", "passaporte", "identidade",
+    "cartao", "card", "iban", "agencia", "conta",
+    "email", "mail", "telefone", "celular", "whatsapp", "endereco",
+    "biometria",
+)
+_RADICAIS_SENSIVEIS = _RADICAIS_SEGREDO + _RADICAIS_PESSOAIS
 # Tamanhos classicos de hash em coluna de largura fixa (md5, sha1, bcrypt, sha256).
 _TAMANHOS_DE_HASH = {32, 40, 60, 64, 128}
 
@@ -175,30 +183,37 @@ def _largura(tipo: str) -> int | None:
     return int(achado.group(1)) if achado else None
 
 
-def _avaliar_sensibilidade(nome: str, tipo: str, estrutura: dict) -> tuple[bool, str]:
-    """A coluna deve ficar fora da resposta do bot por padrão? E por quê?
+def _avaliar_sensibilidade(nome: str, tipo: str, estrutura: dict) -> tuple[bool, bool, str]:
+    """Devolve (sensivel, segredo, motivo).
 
-    Não existe sinal infalível para "dado sensível" — o schema não carrega essa
-    semântica. Então combinamos pistas independentes de idioma e de banco, e devolvemos
-    o motivo para a tela poder justificar a marcação ao aluno, que decide no fim.
+    Dois níveis, porque as consequências são diferentes:
+
+    - **segredo** (senha, hash, token): não sai do banco de jeito nenhum — nem exibido,
+      nem oferecido como filtro.
+    - **sensivel** (segredo + dado pessoal como CPF ou e-mail): sai desmarcado por
+      padrão na resposta, mas continua servindo de filtro.
+
+    Não usamos "coluna única" como sinal: numa tabela de apoio o `nome` costuma ser
+    único e é justamente a coluna mais útil para exibir e filtrar. Marcá-la escondia o
+    que o aluno mais precisava — falso positivo caro demais para o ganho.
     """
     n = _normalizar_nome(nome)
 
-    for radical in _RADICAIS_SENSIVEIS:
+    for radical in _RADICAIS_SEGREDO:
         if radical in n:
-            return True, f"o nome contém “{radical}”"
+            return True, True, f"o nome contém “{radical}”"
 
     # Largura fixa típica de hash: bcrypt (60), sha256 (64), md5 (32)...
     if _papel(tipo) == "texto":
         largura = _largura(tipo)
         if largura in _TAMANHOS_DE_HASH and "CHAR" in tipo.upper():
-            return True, f"texto de {largura} caracteres — tamanho típico de hash"
+            return True, True, f"texto de {largura} caracteres — tamanho típico de hash"
 
-    # Texto único e obrigatório costuma ser credencial de acesso (login, e-mail, CPF).
-    if nome in estrutura["unicas"] and _papel(tipo) == "texto":
-        return True, "valor único — costuma identificar uma pessoa"
+    for radical in _RADICAIS_PESSOAIS:
+        if radical in n:
+            return True, False, f"dado pessoal — o nome contém “{radical}”"
 
-    return False, ""
+    return False, False, ""
 
 
 def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:
@@ -223,7 +238,7 @@ def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:
             and col.get("default") is None
             and not autoincremento
         )
-        sensivel, motivo = _avaliar_sensibilidade(nome, tipo, estrutura)
+        sensivel, segredo, motivo = _avaliar_sensibilidade(nome, tipo, estrutura)
         colunas.append(
             {
                 "nome": nome,
@@ -239,6 +254,8 @@ def listar_colunas(origem: Engine | Session, tabela: str) -> list[dict]:
                 # `motivo` vai para a tela: o aluno vê POR QUE a coluna foi marcada e
                 # decide. A heuristica orienta, quem manda e ele.
                 "sensivel": sensivel,
+                # `segredo` e o subconjunto que nem como filtro pode ser usado.
+                "segredo": segredo,
                 "motivo_sensivel": motivo,
             }
         )

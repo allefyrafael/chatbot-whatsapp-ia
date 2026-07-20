@@ -7,22 +7,25 @@
 <div class="page-head">
     <div>
         <h1>{{ "Editar rota" if editando else "Nova rota de IA" }}</h1>
-        <p class="subtitulo">Quatro passos. Você não precisa escrever SQL.</p>
+        <p class="subtitulo" id="passo-legenda">Passo 1 de 4</p>
     </div>
     <a href="/painel/rotas" class="btn btn-ghost btn-sm">← Voltar</a>
 </div>
 
 <div class="rota-grid">
     <section class="card rota-form-card">
+        <ol class="trilha" id="trilha">
+            <li data-passo="1"><span>1</span> Identidade</li>
+            <li data-passo="2"><span>2</span> Onde e o quê</li>
+            <li data-passo="3"><span>3</span> Como busca</li>
+            <li data-passo="4"><span>4</span> Como responde</li>
+        </ol>
+
         <form method="post" action="{{ acao }}" id="form-rota">
 
             <!-- 1 ------------------------------------------------------------- -->
-            <div class="bloco">
-                <div class="bloco-titulo">
-                    <span class="bloco-num">1</span>
-                    <h4>Identidade</h4>
-                    <span class="ajuda">— como a IA reconhece o pedido</span>
-                </div>
+            <div class="bloco" data-passo="1">
+                <p class="ajuda passo-dica">Como a IA reconhece o pedido do cliente.</p>
                 <div class="campo-duplo">
                     <label>Nome da rota
                         <input type="text" name="nome" id="f-nome" required
@@ -38,12 +41,8 @@
             </div>
 
             <!-- 2 ------------------------------------------------------------- -->
-            <div class="bloco">
-                <div class="bloco-titulo">
-                    <span class="bloco-num">2</span>
-                    <h4>Onde e o quê</h4>
-                    <span class="ajuda">— tabelas do seu banco na AWS</span>
-                </div>
+            <div class="bloco" data-passo="2">
+                <p class="ajuda passo-dica">Tabelas do seu banco na AWS.</p>
 
                 {% if not banco_conectado %}
                 <div class="aviso-conectar">
@@ -80,12 +79,8 @@
             </div>
 
             <!-- 3 ------------------------------------------------------------- -->
-            <div class="bloco" id="bloco-como-busca">
-                <div class="bloco-titulo">
-                    <span class="bloco-num">3</span>
-                    <h4>Como busca</h4>
-                    <span class="ajuda">— traz tudo ou filtra?</span>
-                </div>
+            <div class="bloco" data-passo="3" id="bloco-como-busca">
+                <p class="ajuda passo-dica">O bot traz tudo ou filtra?</p>
 
                 {% set modo = rota.modo_busca if editando else 'perguntar' %}
                 <div class="opcoes-modo" id="opcoes-modo">
@@ -128,12 +123,8 @@
             </div>
 
             <!-- 4 ------------------------------------------------------------- -->
-            <div class="bloco">
-                <div class="bloco-titulo">
-                    <span class="bloco-num">4</span>
-                    <h4>Como responde</h4>
-                    <span class="ajuda">— veja ao lado enquanto digita</span>
-                </div>
+            <div class="bloco" data-passo="4">
+                <p class="ajuda passo-dica">Veja a conversa ao lado enquanto digita.</p>
 
                 <div id="area-retorno">
                     <div class="colunas-topo">
@@ -169,6 +160,7 @@
             </div>
 
             <div class="rota-acoes">
+                <button type="button" class="btn btn-ghost" id="btn-voltar" hidden>← Voltar</button>
                 <label class="trava" id="trava-admin" title="O bot pede e-mail e senha antes de executar">
                     <input type="checkbox" name="requer_admin" id="f-admin" value="1"
                            {{ "checked" if editando and rota.requer_admin }}>
@@ -179,7 +171,10 @@
                     </span>
                 </label>
                 <a href="/painel/rotas" class="btn btn-ghost">Cancelar</a>
-                <button type="submit" class="btn btn-primary btn-com-icone" id="btn-salvar">
+                <button type="button" class="btn btn-primary btn-com-icone" id="btn-avancar">
+                    Avançar →
+                </button>
+                <button type="submit" class="btn btn-primary btn-com-icone" id="btn-salvar" hidden>
                     {{ icone("salvar") if editando else icone("adicionar") }}
                     {{ "Salvar alterações" if editando else "Criar rota" }}
                 </button>
@@ -328,11 +323,12 @@
         function cartaoDeColuna(c) {
             var rotulo = ICONE_TIPO[c.papel] || ICONE_TIPO.outro;
             var selos = "";
-            if (c.chave) selos += '<span class="selo selo-chave">ID</span>';
-            if (c.obrigatoria) selos += '<span class="selo">obrigatória</span>';
+            if (c.chave) selos += '<span class="selo selo-chave" title="Identificador">ID</span>';
+            if (c.obrigatoria) selos += '<span class="selo" title="Obrigatória ao cadastrar">obrig.</span>';
             if (c.sensivel) {
                 selos += '<span class="selo selo-alerta" title="' +
-                    escapar(c.motivo_sensivel) + '">sensível</span>';
+                    escapar(c.motivo_sensivel) + '">' +
+                    (c.segredo ? "segredo" : "pessoal") + "</span>";
             }
             var lb = document.createElement("label");
             lb.className = "coluna-card" + (c.sensivel ? " coluna-card--sensivel" : "");
@@ -448,8 +444,63 @@
             UI.carregando(document.getElementById("btn-salvar"), "Salvando…");
         });
 
+        /* ---------------------------------------------------------------- passos
+           Um bloco por vez: os quatro juntos não cabiam na tela e o formulário passava
+           a rolar por dentro. A trilha no topo mostra onde a pessoa está. */
+        var TOTAL = 4;
+        var passoAtual = 1;
+        var blocos = document.querySelectorAll(".bloco[data-passo]");
+        var trilha = document.querySelectorAll("#trilha li");
+        var legenda = document.getElementById("passo-legenda");
+        var btnVoltar = document.getElementById("btn-voltar");
+        var btnAvancar = document.getElementById("btn-avancar");
+        var btnSalvar = document.getElementById("btn-salvar");
+        var trava = document.getElementById("trava-admin");
+
+        function passoValido(n) {
+            // Só barra o que é obrigatório de verdade; o resto o servidor revalida.
+            if (n === 1) return fNome.value.trim() && document.getElementById("f-descricao").value.trim();
+            if (n === 2) return !tabela || tabela.value;
+            return true;
+        }
+
+        function mostrarPasso(n) {
+            passoAtual = n;
+            [].forEach.call(blocos, function (b) {
+                b.hidden = Number(b.getAttribute("data-passo")) !== n;
+            });
+            [].forEach.call(trilha, function (li) {
+                var p = Number(li.getAttribute("data-passo"));
+                li.classList.toggle("trilha--atual", p === n);
+                li.classList.toggle("trilha--feito", p < n);
+            });
+            legenda.textContent = "Passo " + n + " de " + TOTAL;
+            btnVoltar.hidden = n === 1;
+            btnAvancar.hidden = n === TOTAL;
+            btnSalvar.hidden = n !== TOTAL;
+            trava.hidden = n !== TOTAL;   // decisão de segurança fica junto do resumo
+        }
+
+        btnAvancar.addEventListener("click", function () {
+            if (!passoValido(passoAtual)) {
+                UI.aviso("Preencha os campos deste passo antes de avançar.", "erro", 3500);
+                return;
+            }
+            if (passoAtual < TOTAL) mostrarPasso(passoAtual + 1);
+        });
+        btnVoltar.addEventListener("click", function () {
+            if (passoAtual > 1) mostrarPasso(passoAtual - 1);
+        });
+        [].forEach.call(trilha, function (li) {
+            li.addEventListener("click", function () {
+                var destino = Number(li.getAttribute("data-passo"));
+                if (destino < passoAtual) mostrarPasso(destino);   // voltar é sempre livre
+            });
+        });
+
         atualizarEtapas();
         if (tabela && tabela.value) carregarColunas();
+        mostrarPasso(1);
     })();
 </script>
 {% endblock %}

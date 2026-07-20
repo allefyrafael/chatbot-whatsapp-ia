@@ -58,6 +58,42 @@ def listar_todos(db_dados: Session, rota: RotaIA) -> list[dict]:
     return [dict(linha) for linha in db_dados.execute(sql).mappings().all()]
 
 
+def colunas_filtraveis(db_dados: Session, rota: RotaIA) -> list[dict]:
+    """Colunas que o usuário do chat pode escolher para filtrar.
+
+    Ficam de fora as chaves (ninguém procura "a categoria 3" por escrito, e oferecer o id
+    é justamente o que fazia toda busca voltar vazia) e os **segredos** (senha, hash).
+    Dado pessoal continua filtrável: procurar pelo CPF de alguém é uso legítimo — o que
+    não pode é o valor ser exibido sem querer, e isso quem decide é a lista de retorno.
+    Se sobrar nada, devolvemos tudo em vez de travar.
+    """
+    colunas = schema_service.listar_colunas(db_dados, rota.tabela)
+    uteis = [c for c in colunas if not c["chave"] and not c["segredo"]]
+    return uteis or colunas
+
+
+def executar_busca_em(
+    db_dados: Session, rota: RotaIA, coluna: str, valor: str
+) -> list[dict]:
+    """SELECT filtrando por uma coluna escolhida na hora, e não pela fixa da rota.
+
+    É o que permite o filtro guiado: uma rota configurada com a coluna errada deixa de
+    condenar toda busca ao vazio, porque quem conversa escolhe por onde filtrar.
+    O nome da coluna passa pela mesma validação de sempre antes de virar SQL.
+    """
+    tabela = schema_service.validar_tabela(db_dados, rota.tabela)
+    coluna_ok = schema_service.validar_colunas(db_dados, tabela, [coluna])[0]
+    colunas = _colunas_retorno(db_dados, rota)
+
+    lista_colunas = ", ".join(f"`{c}`" for c in colunas)
+    sql = text(
+        f"SELECT {lista_colunas} FROM `{tabela}` WHERE `{coluna_ok}` LIKE :valor "
+        f"LIMIT {LIMITE_RESULTADOS}"
+    )
+    linhas = db_dados.execute(sql, {"valor": f"%{valor}%"}).mappings().all()
+    return [dict(linha) for linha in linhas]
+
+
 def executar_busca(db_dados: Session, rota: RotaIA, valor: str) -> list[dict]:
     """SELECT parametrizado no banco de trabalho, filtrando pela coluna configurada."""
     tabela = schema_service.validar_tabela(db_dados, rota.tabela)

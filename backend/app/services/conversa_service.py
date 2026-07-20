@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import datetime
 import json
+import re
+import unicodedata
 
 from sqlalchemy.orm import Session
 
@@ -40,6 +42,10 @@ AGUARDANDO_SENHA = "aguardando_senha"
 AGUARDANDO_VALOR = "aguardando_valor"
 AGUARDANDO_CAMPO = "aguardando_campo"
 AGUARDANDO_CONFIRMACAO = "aguardando_confirmacao"
+# Filtro guiado: o usuário escolhe a coluna e depois o valor. Existe porque uma coluna
+# de filtro fixa e mal escolhida (um id, por exemplo) condena toda busca ao vazio.
+AGUARDANDO_COLUNA_FILTRO = "aguardando_coluna_filtro"
+AGUARDANDO_VALOR_FILTRO = "aguardando_valor_filtro"
 
 _CANCELAR = {"cancelar", "cancela", "sair", "parar"}
 _CONFIRMAR = {"sim", "s", "confirmo", "confirmar", "pode"}
@@ -147,6 +153,11 @@ def _prosseguir(
         db.commit()
         return _pergunta_de(rota)
 
+    # "Deixar escolher" nunca usa a coluna fixa da rota: o texto (venha da IA ou da
+    # pessoa) e sempre interpretado, para a coluna errada nao condenar a busca.
+    if rota.operacao == "buscar" and rota.modo_busca == "perguntar_ou_todos":
+        return _interpretar_busca(db, db_dados, sessao, rota, valor)
+
     if rota.operacao == "excluir":
         dados = _dados(sessao)
         dados["__valor__"] = valor
@@ -163,6 +174,12 @@ _PEDIDOS_DE_TUDO = {
     "todas", "todos", "tudo", "todas elas", "todos eles",
     "qualquer", "qualquer uma", "geral", "listar", "listar tudo", "all",
 }
+
+
+def _sem_acento(texto: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
+    )
 
 
 def _normalizar(texto: str) -> str:
@@ -194,6 +211,123 @@ def _pergunta_de(rota: RotaIA) -> str:
     if rota.modo_busca == "perguntar_ou_todos":
         return f'{base}\n_(responda *todas* para ver a lista completa)_'
     return base
+
+
+# "filtrar por nome = Corrupção", "coluna nome valor Corrupção", "nome: Corrupção"
+_UMA_FRASE = re.compile(
+    r"(?:filtrar\s+)?(?:pel[ao]\s+|por\s+)?(?P<coluna>[\w\sà-ú]+?)\s*"
+    r"(?:=|:|\bcom\s+(?:o\s+)?valor\b|\bigual\s+a\b|\bcomo\b)\s*"
+    r"(?P<valor>.+)$",
+    re.IGNORECASE,
+)
+
+
+def _achar_coluna(texto: str, colunas: list[dict]) -> str | None:
+    """Casa o que a pessoa escreveu com uma coluna real. Aceita o número da lista.
+
+    Comparação sem acento e sem separadores, porque ninguém digita `data_cadastro` —
+    digita "data cadastro" ou "Data de Cadastro".
+    """
+    alvo = _normalizar(texto)
+    if not alvo:
+        return None
+
+    if alvo.isdigit():
+        indice = int(alvo) - 1
+        if 0 <= indice < len(colunas):
+            return colunas[indice]["nome"]
+
+    def simplificar(t: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", _sem_acento(t).lower())
+
+    simples = simplificar(alvo)
+    for coluna in colunas:                       # nome exato
+        if simplificar(coluna["nome"]) == simples:
+            return coluna["nome"]
+    for coluna in colunas:                       # a pessoa citou a coluna na frase
+        if simplificar(coluna["nome"]) in simples:
+            return coluna["nome"]
+    return None
+
+
+def _menu_de_colunas(colunas: list[dict]) -> str:
+    linhas = "\n".join(
+        f"{i}. *{c['nome']}*" for i, c in enumerate(colunas, start=1)
+    )
+    return (
+        "Você pode filtrar por estas colunas:\n" + linhas +
+        "\n\nResponda o *nome* ou o *número* da coluna."
+    )
+
+
+def _pedir_coluna(
+    db: Session, sessao: SessaoChat, colunas: list[dict]
+) -> str:
+    sessao.etapa = AGUARDANDO_COLUNA_FILTRO
+    db.commit()
+    return _menu_de_colunas(colunas)
+
+
+def _filtrar_por(
+    db: Session, db_dados: Session, sessao: SessaoChat, rota: RotaIA,
+    coluna: str, valor: str,
+) -> str:
+    linhas = rota_service.executar_busca_em(db_dados, rota, coluna, valor)
+    limpar_fluxo(db, sessao)
+    if not linhas:
+        modelo = rota.mensagem_vazio or "Não encontrei nada com {valor} em {coluna}."
+        return modelo.replace("{valor}", valor).replace("{coluna}", coluna)
+    return rota_service.formatar_resultados(linhas)
+
+
+def _interpretar_busca(
+    db: Session,
+    db_dados: Session,
+    sessao: SessaoChat,
+    rota: RotaIA,
+    texto: str,
+    ja_ofereceu_colunas: bool = False,
+) -> str:
+    """Entende o que a pessoa quer, no modo "Deixar escolher".
+
+    Ponto único de interpretação: seja o texto extraído pela IA da primeira frase ou a
+    resposta digitada depois, tudo passa por aqui. Assim a `coluna_filtro` gravada na
+    rota nunca é usada às cegas — era o que fazia uma rota mal configurada (filtro num
+    id) responder "não encontrei" para qualquer busca.
+
+    Ordem: quer tudo? -> "coluna = valor" numa frase? -> citou uma coluna? -> oferece a
+    lista de colunas.
+    """
+    if _quer_tudo(texto):
+        return _listar_tudo(db, db_dados, sessao, rota)
+
+    colunas = rota_service.colunas_filtraveis(db_dados, rota)
+
+    casou = _UMA_FRASE.match(texto)
+    if casou:
+        coluna = _achar_coluna(casou.group("coluna"), colunas)
+        if coluna:
+            return _filtrar_por(
+                db, db_dados, sessao, rota, coluna, casou.group("valor").strip()
+            )
+
+    coluna = _achar_coluna(texto, colunas)
+    if coluna:
+        _salvar_dados(db, sessao, {**_dados(sessao), "__coluna__": coluna})
+        sessao.etapa = AGUARDANDO_VALOR_FILTRO
+        db.commit()
+        return f"Qual valor você procura em *{coluna}*?"
+
+    # Não é nome de coluna: é um valor. Se a rota tem uma coluna de filtro que serve,
+    # usamos ela — quem digita "Assédio" quer o resultado, não um menu. O menu fica
+    # para quando a coluna configurada é inútil (um id) ou nem existe.
+    if not ja_ofereceu_colunas:
+        padrao = next((c["nome"] for c in colunas if c["nome"] == rota.coluna_filtro), None)
+        if padrao:
+            return _filtrar_por(db, db_dados, sessao, rota, padrao, texto)
+
+    prefixo = "Não reconheci essa coluna.\n\n" if ja_ofereceu_colunas else ""
+    return prefixo + _pedir_coluna(db, sessao, colunas)
 
 
 def _listar_tudo(
@@ -284,6 +418,32 @@ def continuar_fluxo(db: Session, db_dados: Session, numero: str, texto: str) -> 
             db, db_dados, sessao, rota, dados.get("__valor__"), valor_veio_da_ia=True
         )
 
+    if etapa == AGUARDANDO_COLUNA_FILTRO:
+        colunas = rota_service.colunas_filtraveis(db_dados, rota)
+        if _quer_tudo(resposta_limpa):
+            return _listar_tudo(db, db_dados, sessao, rota)
+        # Aceita "nome = Corrupção" já nesta etapa, sem obrigar a ida e volta.
+        casou = _UMA_FRASE.match(resposta_limpa)
+        if casou:
+            coluna = _achar_coluna(casou.group("coluna"), colunas)
+            if coluna:
+                return _filtrar_por(
+                    db, db_dados, sessao, rota, coluna, casou.group("valor").strip()
+                )
+        coluna = _achar_coluna(resposta_limpa, colunas)
+        if not coluna:
+            return "Não reconheci essa coluna.\n\n" + _menu_de_colunas(colunas)
+        _salvar_dados(db, sessao, {**_dados(sessao), "__coluna__": coluna})
+        sessao.etapa = AGUARDANDO_VALOR_FILTRO
+        db.commit()
+        return f"Qual valor você procura em *{coluna}*?"
+
+    if etapa == AGUARDANDO_VALOR_FILTRO:
+        coluna = _dados(sessao).get("__coluna__")
+        if not coluna:  # estado inconsistente: recomeça o filtro em vez de travar
+            return _pedir_coluna(db, sessao, rota_service.colunas_filtraveis(db_dados, rota))
+        return _filtrar_por(db, db_dados, sessao, rota, coluna, resposta_limpa)
+
     if etapa == AGUARDANDO_VALOR:
         if _quer_tudo(resposta_limpa):
             if rota.modo_busca == "perguntar_ou_todos":
@@ -295,6 +455,10 @@ def continuar_fluxo(db: Session, db_dados: Session, numero: str, texto: str) -> 
                 "Esta busca precisa de um termo específico — não consigo trazer a "
                 "lista inteira por aqui.\n" + (rota.pergunta or "O que você procura?")
             )
+
+        if rota.modo_busca == "perguntar_ou_todos":
+            return _interpretar_busca(db, db_dados, sessao, rota, resposta_limpa)
+
         return _prosseguir(db, db_dados, sessao, rota, resposta_limpa)
 
     if etapa == AGUARDANDO_CAMPO:

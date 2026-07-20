@@ -33,6 +33,11 @@
 
 * { box-sizing: border-box; }
 
+/* `hidden` precisa vencer qualquer `display` de componente. Sem isto um .btn com o
+   atributo hidden continua visivel, porque `.btn { display: inline-flex }` tem
+   especificidade maior que o seletor de atributo do reset do navegador. */
+[hidden] { display: none !important; }
+
 html, body {
     height: 100%;
     margin: 0;
@@ -433,13 +438,17 @@ body.wizard-body { display: flex; overflow: auto; }
 /* Selecao de colunas: antes era uma fileira de checkboxes crus, sem dizer o tipo do
    dado nem por que algo estava desmarcado. */
 .colunas-grade {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 5px; margin-top: 5px; max-height: 96px; overflow-y: auto; padding-right: 2px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+    gap: 6px; margin-top: 5px; max-height: 220px; overflow-y: auto; padding-right: 2px;
 }
 .coluna-card {
-    display: flex; flex-direction: row; align-items: center; gap: 7px;
+    display: grid;
+    /* checkbox | tipo | nome (encolhe) | selos (largura propria) */
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center; gap: 7px;
     padding: 5px 8px; border: 1px solid var(--cor-borda); border-radius: var(--raio-sm);
     background: var(--cor-surface); cursor: pointer; font-weight: 400; min-width: 0;
+    overflow: hidden;
     transition: border-color var(--transicao), background var(--transicao);
 }
 .coluna-card:hover { border-color: #c9ccd3; }
@@ -454,17 +463,17 @@ body.wizard-body { display: flex; overflow: auto; }
 .coluna-nome {
     font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.coluna-selos { display: flex; gap: 3px; margin-left: auto; flex-shrink: 0; }
+.coluna-selos { display: flex; gap: 3px; flex-shrink: 0; }
 .selo {
     font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 999px;
     background: #eef0f3; color: var(--cor-texto-2); text-transform: uppercase;
+    white-space: nowrap;
 }
 .selo-chave { background: var(--cor-primaria-soft); color: var(--cor-primaria); }
 .selo-alerta { background: var(--cor-aviso-bg); color: #8a6300; }
 .coluna-card--sensivel .coluna-nome { color: var(--cor-texto-2); }
 
 .aviso-chave { display: flex; align-items: flex-start; gap: 5px; margin-top: 4px; color: #8a6300; }
-.aviso-chave[hidden] { display: none; }
 .aviso-chave svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
 
 .colunas-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
@@ -474,7 +483,6 @@ body.wizard-body { display: flex; overflow: auto; }
     font-family: var(--fonte);
 }
 .btn-link:hover { text-decoration: underline; }
-.btn-link[hidden] { display: none; }
 
 /* Coluna cujo nome sugere segredo (senha, cpf, token): comeca desmarcada e sinalizada,
    porque o que estiver marcado aqui o bot envia numa conversa de WhatsApp. */
@@ -539,7 +547,6 @@ body.wizard-body { display: flex; overflow: auto; }
     background: rgba(16, 24, 40, .45);
     animation: fadeIn .16s ease both;
 }
-.modal-fundo[hidden] { display: none; }
 .modal-caixa {
     background: var(--cor-surface); border-radius: var(--raio);
     box-shadow: var(--sombra-lg); padding: 22px;
@@ -650,7 +657,7 @@ a.btn-icone {
     #form-rota input, #form-rota textarea, #form-rota select { padding: 5px 9px; }
     #form-rota textarea { min-height: 38px; }
     #form-rota .campo-duplo { gap: 8px; }
-    .colunas-grade { max-height: 76px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    .colunas-grade { max-height: 150px; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); }
     .opcao { padding: 6px 8px; }
     .rota-acoes { padding-top: 7px; margin-top: 7px; }
     .trava { padding: 5px 9px; margin-top: 6px; }
@@ -679,3 +686,31 @@ a.btn-icone {
     font-size: 11.5px; line-height: 1.35; color: #8a6300; max-width: 60ch;
 }
 .alerta-rota svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
+
+
+/* ---------- Trilha de passos do construtor de rotas ----------
+   Os quatro blocos juntos nao cabiam na tela. Um passo por vez resolve a altura e ainda
+   deixa claro o que falta: a trilha mostra onde a pessoa esta e o que ja passou. */
+.trilha {
+    display: flex; gap: 6px; list-style: none; margin: 0 0 10px; padding: 0;
+    flex-wrap: wrap;
+}
+.trilha li {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--cor-borda); background: var(--cor-surface);
+    font-size: 12px; color: var(--cor-texto-2); cursor: default;
+    transition: all var(--transicao);
+}
+.trilha li span {
+    display: flex; align-items: center; justify-content: center;
+    width: 17px; height: 17px; border-radius: 50%;
+    background: #eef0f3; font-size: 10px; font-weight: 700;
+}
+.trilha--atual { border-color: var(--cor-primaria); background: var(--cor-primaria-soft); color: var(--cor-primaria); font-weight: 600; }
+.trilha--atual span { background: var(--cor-primaria); color: #fff; }
+.trilha--feito { color: var(--cor-ok); border-color: #a7d7bd; cursor: pointer; }
+.trilha--feito span { background: var(--cor-ok-bg); color: var(--cor-ok); }
+.trilha--feito:hover { background: #f2fbf6; }
+
+.passo-dica { margin: 0 0 8px; }

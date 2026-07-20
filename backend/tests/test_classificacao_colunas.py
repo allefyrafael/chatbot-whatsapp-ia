@@ -77,29 +77,31 @@ class TestSensibilidade:
         assert cols["verificador"]["sensivel"] is True
         assert "hash" in cols["verificador"]["motivo_sensivel"]
 
-    def test_texto_unico_e_tratado_como_identificacao(self, db_session):
-        """UNIQUE precisa ser nomeado: o SQLite não expõe o `UNIQUE` inline pela
-        introspecção (`get_unique_constraints` volta vazio). No MySQL do aluno as duas
-        formas aparecem."""
+    def test_coluna_unica_nao_e_marcada_so_por_ser_unica(self, db_session):
+        """Regra removida de propósito, depois de atrapalhar num banco real.
+
+        Numa tabela de apoio o `nome` costuma ter índice único e é justamente a coluna
+        mais útil para exibir e filtrar. Marcá-la escondia o que o aluno mais precisava.
+        """
         cols = _colunas(
             db_session,
-            "CREATE TABLE pessoas (id INTEGER PRIMARY KEY, login VARCHAR(80),"
-            " apelido VARCHAR(80), CONSTRAINT uq_login UNIQUE (login))",
-            "pessoas",
+            "CREATE TABLE cat2 (id INTEGER PRIMARY KEY, nome VARCHAR(80),"
+            " CONSTRAINT uq_nome UNIQUE (nome))",
+            "cat2",
         )
-        assert cols["login"]["sensivel"] is True
-        assert "único" in cols["login"]["motivo_sensivel"]
-        assert cols["apelido"]["sensivel"] is False
+        assert cols["nome"]["sensivel"] is False
 
-    def test_indice_unico_tambem_conta(self, db_session):
-        db_session.execute(text(
-            "CREATE TABLE contas2 (id INTEGER PRIMARY KEY, email VARCHAR(120))"
-        ))
-        db_session.execute(text("CREATE UNIQUE INDEX ix_email ON contas2 (email)"))
-        db_session.commit()
-        cols = {c["nome"]: c for c in schema_service.listar_colunas(db_session, "contas2")}
-
-        assert cols["email"]["sensivel"] is True
+    def test_segredo_e_diferente_de_dado_pessoal(self, db_session):
+        """As consequências diferem: segredo nem serve de filtro; pessoal serve."""
+        cols = _colunas(
+            db_session,
+            "CREATE TABLE contas2 (id INTEGER PRIMARY KEY, email VARCHAR(120),"
+            " senha VARCHAR(80), apelido VARCHAR(80))",
+            "contas2",
+        )
+        assert (cols["email"]["sensivel"], cols["email"]["segredo"]) == (True, False)
+        assert (cols["senha"]["sensivel"], cols["senha"]["segredo"]) == (True, True)
+        assert (cols["apelido"]["sensivel"], cols["apelido"]["segredo"]) == (False, False)
 
     def test_coluna_comum_nao_e_marcada(self, db_session):
         """Falso positivo custa caro: o aluno perde a coluna que queria mostrar."""
