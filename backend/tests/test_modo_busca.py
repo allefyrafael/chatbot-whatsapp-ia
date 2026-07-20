@@ -132,14 +132,74 @@ class TestPerguntarOuTodos:
         assert "Assedio" in resposta
         assert "Corrupcao" not in resposta
 
-    def test_todas_nao_vale_no_modo_perguntar(self, db_session, categorias):
-        """Onde a rota não aceita "todas", o texto segue como termo de busca."""
+    def test_todas_nao_lista_tudo_no_modo_perguntar(self, db_session, categorias):
+        """Onde a rota não aceita "todas", a lista completa não pode escapar."""
         rota = _rota(db_session, modo_busca="perguntar")
         conversa_service.iniciar_rota(db_session, db_session, NUMERO, rota)
-        db_session.query(SessaoChat).filter_by(numero=NUMERO).first()
 
         resposta = conversa_service.continuar_fluxo(
             db_session, db_session, NUMERO, "todas"
         )
 
-        assert "Corrupcao" not in resposta   # filtrou por "todas" e não achou
+        assert "Corrupcao" not in resposta
+
+
+class TestNaoEntrarEmLoop:
+    """A resposta que a pessoa digita nunca pode ser descartada.
+
+    Loop relatado em produção, com a rota em modo `perguntar`:
+
+        Bot:     Você quer buscar todas ou alguma em específico?
+        Cliente: Todos
+        Bot:     Você quer buscar todas ou alguma em específico?
+        Cliente: Todos
+        ...
+
+    O guarda de "valor genérico" existe para ignorar o que a IA extrai da frase inicial
+    ("categorias"). Aplicá-lo também à resposta digitada fazia o bot perguntar de novo
+    sem parar, porque "todos" cai no mesmo filtro.
+    """
+
+    def test_responder_todos_no_modo_perguntar_nao_repete_a_pergunta(
+        self, db_session, categorias
+    ):
+        rota = _rota(db_session, modo_busca="perguntar", pergunta="Todas ou específica?")
+        primeira = conversa_service.iniciar_rota(db_session, db_session, NUMERO, rota)
+        assert primeira == "Todas ou específica?"
+
+        segunda = conversa_service.continuar_fluxo(db_session, db_session, NUMERO, "Todos")
+
+        assert segunda != primeira, "perguntou de novo — é o loop"
+
+    def test_pedir_tudo_onde_nao_ha_essa_opcao_explica(self, db_session, categorias):
+        """"Não achei Todos" seria inútil: a pessoa pediu a lista, não buscou por "Todos"."""
+        rota = _rota(
+            db_session, modo_busca="perguntar", pergunta="Qual?",
+            mensagem_vazio="Não achei {valor}.",
+        )
+        conversa_service.iniciar_rota(db_session, db_session, NUMERO, rota)
+
+        resposta = conversa_service.continuar_fluxo(db_session, db_session, NUMERO, "Todos")
+
+        assert "termo específico" in resposta
+        assert "Não achei" not in resposta
+
+    def test_termo_seguinte_funciona_normalmente(self, db_session, categorias):
+        """A recusa mantém o fluxo aberto — a pessoa digita o termo e a busca acontece."""
+        rota = _rota(db_session, modo_busca="perguntar", pergunta="Qual?")
+        conversa_service.iniciar_rota(db_session, db_session, NUMERO, rota)
+        conversa_service.continuar_fluxo(db_session, db_session, NUMERO, "todas")
+
+        resposta = conversa_service.continuar_fluxo(db_session, db_session, NUMERO, "Assedio")
+
+        assert "Assedio" in resposta
+
+    def test_guarda_continua_valendo_para_o_valor_da_ia(self, db_session, categorias):
+        """O motivo original do guarda não pode se perder na correção."""
+        rota = _rota(db_session, modo_busca="perguntar", pergunta="Qual?")
+
+        resposta = conversa_service.iniciar_rota(
+            db_session, db_session, NUMERO, rota, valor="categorias"
+        )
+
+        assert resposta == "Qual?"

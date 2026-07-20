@@ -24,6 +24,12 @@
                     <td>
                         <strong>{{ rota.nome }}</strong>
                         <div class="ajuda">{{ rota.descricao }}</div>
+                        {% if alertas.get(rota.id) %}
+                        <div class="alerta-rota">
+                            {{ icone('alerta') }}
+                            <span>{{ alertas[rota.id]|safe }}</span>
+                        </div>
+                        {% endif %}
                     </td>
                     <td><span class="badge badge-op badge-op--{{ rota.operacao }}">{{ rota.operacao }}</span></td>
                     <td><code>{{ rota.tabela }}</code></td>

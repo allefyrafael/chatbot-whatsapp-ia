@@ -86,3 +86,38 @@ def test_lista_tem_link_de_edicao(admin_client, rota_com_filtro_errado):
     assert f"/painel/rotas/{rota_com_filtro_errado.id}/editar" in html
     assert "<svg" in html          # icones SVG, nao emoji
     assert "data-confirmar" in html  # exclusao pede confirmacao
+
+
+class TestAlertaDeRotaQuebrada:
+    """A lista precisa denunciar a rota que nunca vai encontrar nada.
+
+    Uma rota que filtra por um ID responde "não encontrei" para qualquer busca por
+    texto. Nada na tela indicava isso, e a rota ficou quebrada sem ninguém perceber —
+    só apareceu quando o bot foi usado de verdade no WhatsApp.
+    """
+
+    def test_rota_que_filtra_por_id_aparece_marcada(
+        self, admin_client, rota_com_filtro_errado
+    ):
+        html = admin_client.get("/painel/rotas").text
+
+        assert "alerta-rota" in html
+        assert "id_categoria" in html
+        assert "código/ID" in html
+
+    def test_rota_correta_nao_recebe_alerta(self, admin_client, db_session, rota_com_filtro_errado):
+        rota_com_filtro_errado.coluna_filtro = "nome"
+        db_session.commit()
+
+        html = admin_client.get("/painel/rotas").text
+
+        assert "alerta-rota" not in html
+
+    def test_rota_que_traz_tudo_nao_recebe_alerta(
+        self, admin_client, db_session, rota_com_filtro_errado
+    ):
+        """Sem filtro não há o que dar errado, mesmo com a coluna apontando para um ID."""
+        rota_com_filtro_errado.modo_busca = "todos"
+        db_session.commit()
+
+        assert "alerta-rota" not in admin_client.get("/painel/rotas").text

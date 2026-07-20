@@ -669,3 +669,13 @@ a.btn-icone {
     .item-preview-wrap { position: static; }
     .pairing-chunk { font-size: 26px; letter-spacing: 4px; }
 }
+
+/* Aviso na propria linha da rota: uma rota que filtra por ID responde "nao encontrei"
+   para qualquer busca por texto, e nada na lista denunciava isso. */
+.alerta-rota {
+    display: flex; align-items: flex-start; gap: 6px; margin-top: 5px;
+    padding: 5px 8px; border-radius: var(--raio-sm);
+    background: var(--cor-aviso-bg); border: 1px solid #f0dca0;
+    font-size: 11.5px; line-height: 1.35; color: #8a6300; max-width: 60ch;
+}
+.alerta-rota svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }

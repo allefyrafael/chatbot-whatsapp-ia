@@ -67,12 +67,47 @@ def _validar(
 def listar(
     request: Request,
     db: Session = Depends(get_db),
+    db_dados: Session = Depends(get_db_dados),
     usuario: Usuario = Depends(get_current_admin),
 ):
-    """Mostra as rotas cadastradas."""
+    """Mostra as rotas cadastradas, sinalizando as que nunca vão encontrar nada."""
+    rotas = rota_service.listar_rotas(db)
     return templates.TemplateResponse(
-        request, "rotas_list.html", {"usuario": usuario, "rotas": rota_service.listar_rotas(db)}
+        request,
+        "rotas_list.html",
+        {"usuario": usuario, "rotas": rotas, "alertas": _alertas(db_dados, rotas)},
     )
+
+
+def _alertas(db_dados: Session, rotas: list[RotaIA]) -> dict[int, str]:
+    """Problemas de configuração detectáveis, por id de rota.
+
+    Uma rota que filtra por um ID responde "não encontrei" para qualquer busca por
+    texto, e o aluno não tem como saber disso olhando a lista — foi assim que uma rota
+    ficou quebrada sem ninguém perceber. Aqui o problema fica visível onde ele é
+    resolvido.
+    """
+    if not banco_dados_configurado():
+        return {}
+
+    chaves_por_tabela: dict[str, set[str]] = {}
+    alertas: dict[int, str] = {}
+
+    for rota in rotas:
+        if rota.operacao != "buscar" or rota.modo_busca == "todos" or not rota.coluna_filtro:
+            continue
+        if rota.tabela not in chaves_por_tabela:
+            try:
+                colunas = schema_service.listar_colunas(db_dados, rota.tabela)
+            except Exception:  # noqa: BLE001 - banco fora do ar não pode quebrar a lista
+                colunas = []
+            chaves_por_tabela[rota.tabela] = {c["nome"] for c in colunas if c["chave"]}
+        if rota.coluna_filtro in chaves_por_tabela[rota.tabela]:
+            alertas[rota.id] = (
+                f"Filtra por <b>{rota.coluna_filtro}</b>, que é um código/ID: buscas por "
+                "texto não encontram nada. Edite e escolha uma coluna de texto."
+            )
+    return alertas
 
 
 @router.get("/nova", response_class=HTMLResponse, summary="Formulário de nova rota")

@@ -105,13 +105,25 @@ def iniciar_rota(
             "Qual o seu *e-mail* de administrador?"
         )
 
-    return _prosseguir(db, db_dados, sessao, rota, valor)
+    # Aqui o valor veio da IA (extraído da frase do usuário), não digitado em resposta.
+    return _prosseguir(db, db_dados, sessao, rota, valor, valor_veio_da_ia=True)
 
 
 def _prosseguir(
-    db: Session, db_dados: Session, sessao: SessaoChat, rota: RotaIA, valor: str | None
+    db: Session,
+    db_dados: Session,
+    sessao: SessaoChat,
+    rota: RotaIA,
+    valor: str | None,
+    valor_veio_da_ia: bool = False,
 ) -> str:
-    """Executa a rota ou pergunta o que falta."""
+    """Executa a rota ou pergunta o que falta.
+
+    `valor_veio_da_ia` distingue as duas origens do valor, que precisam de tratamento
+    oposto: o que a IA extrai da frase inicial pode ser só o assunto e deve ser
+    descartado; o que a pessoa digita em resposta à pergunta é sempre a resposta dela e
+    **nunca** pode ser descartado — descartar fazia o bot repetir a pergunta para sempre.
+    """
     if rota.operacao == "inserir":
         return _proximo_campo(db, db_dados, sessao, rota)
 
@@ -119,11 +131,15 @@ def _prosseguir(
     if rota.operacao == "buscar" and rota.modo_busca == "todos":
         return _listar_tudo(db, db_dados, sessao, rota)
 
-    if valor and rota.operacao == "buscar" and _valor_e_generico(valor, rota):
+    if (
+        valor_veio_da_ia
+        and valor
+        and rota.operacao == "buscar"
+        and _valor_e_generico(valor, rota)
+    ):
         # A IA costuma preencher o "valor" com o objeto da frase ("quero ver as
         # categorias" -> "categorias"). Isso pulava a pergunta e filtrava por um termo
-        # que não existe em nenhum registro. Nesse caso tratamos como se nada tivesse
-        # sido informado, e perguntamos.
+        # que não existe em nenhum registro. Nesse caso perguntamos.
         valor = None
 
     if not valor:
@@ -263,15 +279,22 @@ def continuar_fluxo(db: Session, db_dados: Session, numero: str, texto: str) -> 
         sessao.etapa = None
         db.commit()
         dados = _dados(sessao)
+        # `__valor__` foi guardado no início da rota: é o valor da IA, não uma resposta.
         return f"Autenticado, {usuario.nome}. " + _prosseguir(
-            db, db_dados, sessao, rota, dados.get("__valor__")
+            db, db_dados, sessao, rota, dados.get("__valor__"), valor_veio_da_ia=True
         )
 
     if etapa == AGUARDANDO_VALOR:
-        # "todas" só vale onde a rota foi configurada para aceitar; nas demais o texto
-        # segue como termo de busca normal.
-        if rota.modo_busca == "perguntar_ou_todos" and _quer_tudo(resposta_limpa):
-            return _listar_tudo(db, db_dados, sessao, rota)
+        if _quer_tudo(resposta_limpa):
+            if rota.modo_busca == "perguntar_ou_todos":
+                return _listar_tudo(db, db_dados, sessao, rota)
+            # Buscar literalmente por "todas" devolveria "não encontrei todas", o que
+            # não ajuda ninguém: a pessoa pediu a lista inteira e esta rota não oferece
+            # essa opção. Dizemos isso, e seguimos esperando um termo.
+            return (
+                "Esta busca precisa de um termo específico — não consigo trazer a "
+                "lista inteira por aqui.\n" + (rota.pergunta or "O que você procura?")
+            )
         return _prosseguir(db, db_dados, sessao, rota, resposta_limpa)
 
     if etapa == AGUARDANDO_CAMPO:

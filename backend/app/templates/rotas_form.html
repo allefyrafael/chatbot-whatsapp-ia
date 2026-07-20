@@ -152,6 +152,12 @@
                         <input type="text" name="pergunta" id="f-pergunta"
                                value="{{ rota.pergunta or '' if editando else '' }}"
                                placeholder="Ex.: Qual categoria você procura?">
+                        <small class="ajuda aviso-chave" id="aviso-pergunta" hidden>
+                            {{ icone('alerta') }}
+                            Sua pergunta oferece “todas”, mas esta rota está em
+                            <b>Sempre filtrar</b> e não aceita. Use
+                            <b>Deixar escolher</b> no passo 3.
+                        </small>
                     </label>
                     <label id="campo-vazio" title="Use {valor} para repetir o que a pessoa pesquisou">
                         Se não encontrar nada
@@ -236,6 +242,19 @@
             return [].slice.call(
                 colunasRetorno.querySelectorAll('input[type="checkbox"]:checked')
             ).map(function (c) { return c.value; });
+        }
+
+        /* A pergunta que oferece "todas" com a rota em "Sempre filtrar" foi o que gerou
+           uma conversa sem saída em produção: o bot perguntava, a pessoa respondia
+           "Todos" e a rota não tinha como atender. Avisamos aqui, antes de salvar. */
+        var avisoPergunta = document.getElementById("aviso-pergunta");
+        var OFERECE_TUDO = /\b(todas|todos|tudo)\b/i;
+
+        function avisarSePerguntaOfereceTudo() {
+            if (!avisoPergunta) return;
+            avisoPergunta.hidden = !(
+                modo() === "perguntar" && OFERECE_TUDO.test(fPergunta.value || "")
+            );
         }
 
         function avisarSeFiltroForChave() {
@@ -397,6 +416,7 @@
             campoVazio.style.display = (op === "buscar") ? "" : "none";
 
             avisarSeFiltroForChave();
+            avisarSePerguntaOfereceTudo();
             desenharConversa();
         }
 
@@ -420,6 +440,7 @@
         [fNome, fPergunta, fVazio].forEach(function (campo) {
             campo.addEventListener("input", desenharConversa);
         });
+        fPergunta.addEventListener("input", avisarSePerguntaOfereceTudo);
         fAdmin.addEventListener("change", desenharConversa);
 
         // Validar a rota vai ate o banco na AWS: sem isto o clique parecia sem efeito.
