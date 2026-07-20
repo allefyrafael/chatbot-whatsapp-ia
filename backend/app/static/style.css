@@ -604,17 +604,30 @@ body.wizard-body { display: flex; overflow: auto; }
 
 /* ---------- Icones de acao (SVG, nao emoji) ---------- */
 .acoes-linha { display: flex; gap: 4px; align-items: center; }
-.btn-icone {
+/* `button.btn-icone` precisa estar no seletor: a regra generica de botao acima usa
+   `button[type="submit"]`, que tem especificidade MAIOR que uma classe sozinha. Sem
+   isto o padding de 16px do botao vencia, espremia o SVG a zero e o icone sumia —
+   so o de editar aparecia, porque e um <a> e nao um <button>. */
+.btn-icone,
+button.btn-icone,
+a.btn-icone {
     display: inline-flex; align-items: center; justify-content: center;
     width: 30px; height: 30px; padding: 0;
     border: 1px solid var(--cor-borda); border-radius: var(--raio-sm);
     background: var(--cor-surface); color: var(--cor-texto-2);
     cursor: pointer; transition: all var(--transicao);
 }
-.btn-icone:hover { color: var(--cor-texto); border-color: #c9ccd3; background: #f7f8fa; text-decoration: none; }
-.btn-icone--perigo:hover { color: var(--cor-perigo); border-color: #eab8b8; background: #fdf3f3; }
-.btn-icone--ok:hover { color: var(--cor-ok); border-color: #a7d7bd; background: #f2fbf6; }
-.btn-icone svg { width: 16px; height: 16px; }
+/* Mesmo motivo do bloco acima: `button[type="submit"]:hover` supera `.btn-icone:hover`. */
+.btn-icone:hover, button.btn-icone:hover, a.btn-icone:hover {
+    color: var(--cor-texto); border-color: #c9ccd3; background: #f7f8fa; text-decoration: none;
+}
+.btn-icone--perigo:hover, button.btn-icone--perigo:hover {
+    color: var(--cor-perigo); border-color: #eab8b8; background: #fdf3f3;
+}
+.btn-icone--ok:hover, button.btn-icone--ok:hover {
+    color: var(--cor-ok); border-color: #a7d7bd; background: #f2fbf6;
+}
+.btn-icone svg { width: 16px; height: 16px; flex-shrink: 0; }
 .btn-com-icone { display: inline-flex; align-items: center; gap: 7px; }
 .btn-com-icone svg { width: 15px; height: 15px; }
 
